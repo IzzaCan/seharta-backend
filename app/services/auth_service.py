@@ -26,6 +26,9 @@ from app.schemas.user import (
 
 from app.repositories.user_repository import UserRepository
 
+
+from app.core.logger import log_activity
+
 class AuthService:
     """Authentication business logic"""
 
@@ -65,6 +68,14 @@ class AuthService:
         # Generate tokens
         access_token = create_access_token(str(user.id))
         refresh_token = create_refresh_token(str(user.id))
+
+        # Log activity
+        log_activity(
+            action="USER_REGISTER",
+            user_id=str(user.id),
+            detail=f"New user registered: {user.email}",
+            endpoint="POST /api/v1/auth/register"
+        )
 
         return TokenResponse(
             access_token=access_token,
@@ -118,6 +129,15 @@ class AuthService:
         # Generate tokens
         access_token = create_access_token(str(user.id))
         refresh_token = create_refresh_token(str(user.id))
+
+
+        # Log activity
+        log_activity(
+            action="USER_LOGIN",
+            user_id=str(user.id),
+            detail=f"User login: {user.email}",
+            endpoint="POST /api/v1/auth/login"
+        )
 
         return TokenResponse(
             access_token=access_token,
