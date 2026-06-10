@@ -1,0 +1,123 @@
+import string
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+from app.api import dependencies
+from app.db.session import get_db
+from app.models.user import User
+from app.models.family import Family, PairingCode
+from app.schemas.family import CreateFamilyRequest, JoinFamilyRequest, FamilyCreateResponse, FamilyJoinResponse
+
+router = APIRouter()
+
+def generate_unique_pin(db: Session) -> str:
+    """Generate 6-digit PIN acak (Secure) dan pastikan unik di database."""
+    while True:
+        code = ''.join(secrets.choice(string.digits) for _ in range(6))
+        existing_code = db.execute(
+            select(PairingCode).where(PairingCode.code == code)
+        ).scalar_one_or_none()
+        if not existing_code:
+            return code
+
+@router.post("/create", response_model=FamilyCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_family(
+    request: CreateFamilyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Create a new family and generate a 6-digit pairing code.
+    """
+    if current_user.family_id:
+        raise HTTPException(status_code=400, detail="User sudah tergabung dalam dompet bersama")
+
+    try:
+        new_family = Family(family_name=request.family_name)
+        db.add(new_family)
+        db.flush()
+
+        pin_code = generate_unique_pin(db)
+        expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
+        
+        new_pairing = PairingCode(
+            family_id=new_family.id,
+            code=pin_code,
+            expires_at=expiration_time
+        )
+        db.add(new_pairing)
+        
+        current_user.family_id = new_family.id
+        db.commit()
+        
+        return FamilyCreateResponse(message="Keluarga berhasil dibuat", code=pin_code)
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
+
+@router.post("/join", response_model=FamilyJoinResponse, status_code=status.HTTP_200_OK)
+def join_family(
+    request: JoinFamilyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Join an existing family using a 6-digit pairing code.
+    """
+    if current_user.family_id:
+        raise HTTPException(status_code=400, detail="User sudah tergabung dalam dompet bersama")
+
+    try:
+        pairing = db.execute(
+            select(PairingCode)
+            .where(PairingCode.code == request.code)
+            .where(PairingCode.is_used == False)
+            .where(PairingCode.expires_at > datetime.now(timezone.utc))
+            .with_for_update() 
+        ).scalar_one_or_none()
+        
+        if not pairing:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="PIN tidak valid atau sudah kedaluwarsa")
+            
+        current_user.family_id = pairing.family_id
+        pairing.is_used = True
+        
+        db.commit()
+        
+        return FamilyJoinResponse(message="Berhasil bergabung dengan dompet bersama!", family_id=pairing.family_id)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
+
+@router.get("/pairing-status/{code}")
+def get_pairing_status(
+    code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Check if the pairing code has been used.
+    """
+    pairing = db.execute(
+        select(PairingCode)
+        .where(PairingCode.code == code)
+    ).scalar_one_or_none()
+    
+    if not pairing:
+        raise HTTPException(status_code=404, detail="PIN tidak ditemukan")
+        
+    if pairing.family_id != current_user.family_id:
+        raise HTTPException(status_code=403, detail="Tidak memiliki akses ke PIN ini")
+        
+    return {"is_used": pairing.is_used}
+

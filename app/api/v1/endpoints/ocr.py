@@ -34,11 +34,28 @@ def scan_receipt(
         # Baca byte data dari file
         file_bytes = file.file.read()
         
+        # Normalisasi MIME type untuk menghindari error dari Gemini (Gemini menolak application/octet-stream)
+        safe_mime_type = "image/jpeg"
+        if content_type.startswith("image/") and content_type != "application/octet-stream":
+            safe_mime_type = content_type
+        else:
+            # Tebak dari ekstensi
+            ext = filename.lower().split('.')[-1] if '.' in filename else ''
+            mapping = {
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'png': 'image/png',
+                'webp': 'image/webp',
+                'heic': 'image/heic',
+                'heif': 'image/heif'
+            }
+            safe_mime_type = mapping.get(ext, 'image/jpeg')
+            
         # Panggil OcrService
         ocr_service = OcrService()
         result = ocr_service.parse_receipt(
             file_bytes=file_bytes, 
-            content_type=file.content_type
+            content_type=safe_mime_type
         )
         
         return result

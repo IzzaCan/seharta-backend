@@ -29,6 +29,7 @@ class UserResponse(UserBase):
     id: UUID
 
     avatar_url: Optional[str] = None
+    family_id: Optional[UUID] = None
 
     is_active: bool
     is_verified: bool
