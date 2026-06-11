@@ -6,6 +6,9 @@ from datetime import datetime
 class CreateFamilyRequest(BaseModel):
     family_name: str
 
+class UpdateFamilyNameRequest(BaseModel):
+    family_name: str
+
 class JoinFamilyRequest(BaseModel):
     code: str
 

@@ -23,6 +23,13 @@ class UserLogin(BaseModel):
 class UserGoogleLogin(BaseModel):
     id_token: str
 
+class UserUpdateProfile(BaseModel):
+    full_name: str
+
+class UserUpdatePassword(BaseModel):
+    old_password: str
+    new_password: str
+
 
 # Response Schemas
 class UserResponse(UserBase):

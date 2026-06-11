@@ -2,8 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
+import os
+from fastapi.staticfiles import StaticFiles
 
-
+# Create static directory for avatars if not exists
+os.makedirs("app/static/avatars", exist_ok=True)
 app = FastAPI(
     title="Seharta API",
     version="1.0.0"
@@ -17,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.get("/")

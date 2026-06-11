@@ -11,7 +11,7 @@ from app.api import dependencies
 from app.db.session import get_db
 from app.models.user import User
 from app.models.family import Family, PairingCode
-from app.schemas.family import CreateFamilyRequest, JoinFamilyRequest, FamilyCreateResponse, FamilyJoinResponse
+from app.schemas.family import CreateFamilyRequest, JoinFamilyRequest, FamilyCreateResponse, FamilyJoinResponse, FamilyResponse, UpdateFamilyNameRequest
 
 router = APIRouter()
 
@@ -121,3 +121,50 @@ def get_pairing_status(
         
     return {"is_used": pairing.is_used}
 
+@router.get("/info", response_model=FamilyResponse)
+def get_family_info(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Get the family information of the current user.
+    """
+    if not current_user.family_id:
+        raise HTTPException(status_code=404, detail="User tidak tergabung dalam keluarga")
+        
+    family = db.execute(
+        select(Family).where(Family.id == current_user.family_id)
+    ).scalar_one_or_none()
+    
+    if not family:
+        raise HTTPException(status_code=404, detail="Keluarga tidak ditemukan")
+        
+    return family
+
+@router.put("/name", response_model=FamilyResponse)
+def update_family_name(
+    request: UpdateFamilyNameRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Update the family name of the current user's family.
+    """
+    if not current_user.family_id:
+        raise HTTPException(status_code=400, detail="User tidak tergabung dalam keluarga")
+        
+    family = db.execute(
+        select(Family).where(Family.id == current_user.family_id)
+    ).scalar_one_or_none()
+    
+    if not family:
+        raise HTTPException(status_code=404, detail="Keluarga tidak ditemukan")
+    
+    try:
+        family.family_name = request.family_name
+        db.commit()
+        db.refresh(family)
+        return family
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
