@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+import shutil
+import uuid
+import os
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -8,8 +11,12 @@ from app.schemas.user import (
     UserLogin,
     UserGoogleLogin,
     TokenResponse,
-    UserResponse
+    UserResponse,
+    UserUpdateProfile,
+    UserUpdatePassword
 )
+
+from app.core.security import verify_password, hash_password
 
 from app.services.auth_service import AuthService
 
@@ -91,3 +98,64 @@ def logout():
     return {
         "message": "Successfully logged out"
     }
+
+# Update Profile
+@router.put("/profile", response_model=UserResponse)
+def update_profile(
+    data: UserUpdateProfile,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    current_user.full_name = data.full_name
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+# Update Password
+@router.put("/password", response_model=UserResponse)
+def update_password(
+    data: UserUpdatePassword,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.password_hash:
+        raise HTTPException(status_code=400, detail="Pengguna menggunakan login eksternal")
+        
+    if not verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Password lama salah")
+        
+    current_user.password_hash = hash_password(data.new_password)
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+# Upload Avatar
+@router.post("/avatar", response_model=UserResponse)
+def upload_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Validate file extension instead of content_type because Flutter Web 
+    # multipart without explicit MediaType defaults to application/octet-stream
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File tidak ditemukan")
+
+    file_ext = file.filename.split('.')[-1].lower()
+    if file_ext not in ["jpg", "jpeg", "png", "gif", "webp"]:
+        raise HTTPException(status_code=400, detail="File harus berupa gambar (jpg, png, webp, gif)")
+        
+    filename = f"{uuid.uuid4()}.{file_ext}"
+    filepath = f"app/static/avatars/{filename}"
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Update user
+    # Provide the full url for easier frontend loading, or just relative path. 
+    # Usually relative path /static/avatars/... works with baseUrl on frontend
+    current_user.avatar_url = f"/static/avatars/{filename}"
+    
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
