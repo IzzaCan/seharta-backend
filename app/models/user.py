@@ -2,8 +2,8 @@ from datetime import datetime
 import uuid
 from typing import Optional
 
-from sqlalchemy import String, DateTime, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -68,6 +68,13 @@ class User(Base):
         nullable=False
     )
 
+    # Family
+    family_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("families.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
 
     # relationship
-
+    family: Mapped[Optional["Family"]] = relationship("Family", back_populates="users")
