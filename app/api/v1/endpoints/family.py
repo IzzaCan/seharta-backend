@@ -5,13 +5,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.api import dependencies
 from app.db.session import get_db
 from app.models.user import User
 from app.models.family import Family, PairingCode
-from app.schemas.family import CreateFamilyRequest, JoinFamilyRequest, FamilyCreateResponse, FamilyJoinResponse, FamilyResponse, UpdateFamilyNameRequest
+from app.schemas.family import CreateFamilyRequest, JoinFamilyRequest, FamilyCreateResponse, FamilyJoinResponse, FamilyResponse, UpdateFamilyNameRequest, RegenerateCodeResponse, LeaveFamilyResponse
 
 router = APIRouter()
 
@@ -88,6 +88,8 @@ def join_family(
             
         current_user.family_id = pairing.family_id
         pairing.is_used = True
+        pairing.used_by = current_user.id
+        pairing.used_at = datetime.now(timezone.utc)
         
         db.commit()
         
@@ -165,6 +167,72 @@ def update_family_name(
         db.commit()
         db.refresh(family)
         return family
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
+
+@router.post("/regenerate-code", response_model=RegenerateCodeResponse)
+def regenerate_code(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Regenerate a pairing code for the family.
+    """
+    if not current_user.family_id:
+        raise HTTPException(status_code=400, detail="User tidak tergabung dalam keluarga")
+
+    try:
+        pin_code = generate_unique_pin(db)
+        expiration_time = datetime.now(timezone.utc) + timedelta(hours=24)
+        
+        new_pairing = PairingCode(
+            family_id=current_user.family_id,
+            code=pin_code,
+            expires_at=expiration_time
+        )
+        db.add(new_pairing)
+        db.commit()
+        
+        return RegenerateCodeResponse(
+            message="Pairing code generated successfully",
+            code=pin_code,
+            expires_at=expiration_time
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
+
+@router.post("/leave", response_model=LeaveFamilyResponse)
+def leave_family(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(dependencies.get_current_user)
+) -> Any:
+    """
+    Leave the current family.
+    """
+    if not current_user.family_id:
+        raise HTTPException(status_code=400, detail="User tidak tergabung dalam keluarga")
+
+    try:
+        family_id = current_user.family_id
+        current_user.family_id = None
+        db.flush()
+        
+        remaining_members = db.execute(
+            select(func.count(User.id)).where(User.family_id == family_id)
+        ).scalar()
+        
+        if remaining_members == 0:
+            family_to_delete = db.execute(
+                select(Family).where(Family.id == family_id)
+            ).scalar_one_or_none()
+            if family_to_delete:
+                db.delete(family_to_delete)
+        
+        db.commit()
+        
+        return LeaveFamilyResponse(message="Successfully left the family")
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
