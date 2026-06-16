@@ -47,3 +47,12 @@ def get_current_user(
     )
 
     return user
+
+def get_current_family_user(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to ensure the user is part of a family."""
+    if not current_user.family_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User tidak tergabung dalam keluarga"
+        )
+    return current_user

@@ -7,7 +7,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-class OcrService:
+class AiService:
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
         if self.api_key:
@@ -17,7 +17,7 @@ class OcrService:
             except Exception as e:
                 logger.error(f"Error configuring Gemini AI: {e}")
         else:
-            logger.warning("GEMINI_API_KEY is not set. OcrService will operate in MOCK fallback mode.")
+            logger.warning("GEMINI_API_KEY is not set. AiService will operate in MOCK fallback mode.")
 
     def parse_receipt(self, file_bytes: bytes, content_type: str = "image/jpeg") -> dict:
         """

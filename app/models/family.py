@@ -1,5 +1,6 @@
 from datetime import datetime
 import uuid
+from typing import Optional
 
 from sqlalchemy import String, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,6 +27,8 @@ class Family(Base):
     # Relationships
     users: Mapped[list["User"]] = relationship("User", back_populates="family")
     pairing_codes: Mapped[list["PairingCode"]] = relationship("PairingCode", back_populates="family", cascade="all, delete-orphan")
+    wallets: Mapped[list["Wallet"]] = relationship("Wallet", back_populates="family", cascade="all, delete-orphan")
+    categories: Mapped[list["Category"]] = relationship("Category", back_populates="family", cascade="all, delete-orphan")
 
 
 class PairingCode(Base):
@@ -42,8 +45,7 @@ class PairingCode(Base):
         nullable=False
     )
     code: Mapped[str] = mapped_column(String(6), unique=True, index=True, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

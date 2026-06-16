@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from app.services.ocr_service import OcrService
+from app.services.ai_service import AiService
 from app.api.dependencies import get_current_user
 from app.models.user import User
 
@@ -51,9 +51,9 @@ def scan_receipt(
             }
             safe_mime_type = mapping.get(ext, 'image/jpeg')
             
-        # Panggil OcrService
-        ocr_service = OcrService()
-        result = ocr_service.parse_receipt(
+        # Panggil AiService
+        ai_service = AiService()
+        result = ai_service.parse_receipt(
             file_bytes=file_bytes, 
             content_type=safe_mime_type
         )
