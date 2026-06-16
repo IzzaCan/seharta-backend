@@ -27,3 +27,7 @@ class FamilyCreateResponse(BaseModel):
 class FamilyJoinResponse(BaseModel):
     message: str
     family_id: uuid.UUID
+
+
+class LeaveFamilyResponse(BaseModel):
+    message: str
