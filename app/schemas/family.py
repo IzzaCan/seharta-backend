@@ -28,10 +28,6 @@ class FamilyJoinResponse(BaseModel):
     message: str
     family_id: uuid.UUID
 
-class RegenerateCodeResponse(BaseModel):
-    message: str
-    code: str
-    expires_at: datetime
 
 class LeaveFamilyResponse(BaseModel):
     message: str

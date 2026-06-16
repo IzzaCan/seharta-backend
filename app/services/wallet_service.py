@@ -1,0 +1,169 @@
+from decimal import Decimal
+from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, func
+
+from app.models.wallet import Wallet
+from app.models.transaction import Transaction
+from app.models.user import User
+from app.schemas.wallet import CreateWalletRequest, UpdateWalletRequest
+
+
+class WalletService:
+    """Business logic for wallet operations."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create_wallet(self, user: User, data: CreateWalletRequest) -> Wallet:
+        """Create a new wallet for the user's family."""
+        wallet = Wallet(
+            family_id=user.family_id,
+            wallet_name=data.wallet_name,
+            balance=data.initial_balance,
+            is_active=True
+        )
+        self.db.add(wallet)
+        try:
+            self.db.commit()
+            self.db.refresh(wallet)
+            return wallet
+        except IntegrityError:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nama wallet sudah digunakan dalam keluarga ini"
+            )
+        except Exception as e:
+            self.db.rollback()
+            raise e
+
+    def create_bootstrap_wallet(self, family_id: UUID) -> Wallet:
+        """Create the default 'Cash' wallet when a family is created."""
+        wallet = Wallet(
+            family_id=family_id,
+            wallet_name="Cash",
+            balance=Decimal("0.00"),
+            is_active=True
+        )
+        self.db.add(wallet)
+        return wallet
+
+    def list_wallets(self, user: User, include_inactive: bool = False) -> list[Wallet]:
+        """List all wallets for the user's family."""
+        stmt = select(Wallet).where(Wallet.family_id == user.family_id)
+        if not include_inactive:
+            stmt = stmt.where(Wallet.is_active == True)
+        stmt = stmt.order_by(Wallet.created_at)
+        result = self.db.execute(stmt).scalars().all()
+        return list(result)
+
+    def update_wallet(self, user: User, wallet_id: UUID, data: UpdateWalletRequest) -> Wallet:
+        """Update wallet name and/or is_active. Never modifies balance."""
+        wallet = self.db.execute(
+            select(Wallet)
+            .where(Wallet.id == wallet_id)
+            .where(Wallet.family_id == user.family_id)
+        ).scalar_one_or_none()
+
+        if not wallet:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Wallet tidak ditemukan"
+            )
+
+        # If deactivating, enforce minimum active wallet guard
+        if data.is_active is False and wallet.is_active is True:
+            active_count = self.db.execute(
+                select(func.count(Wallet.id))
+                .where(Wallet.family_id == user.family_id)
+                .where(Wallet.is_active == True)
+            ).scalar()
+            if active_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Keluarga harus memiliki minimal satu wallet aktif"
+                )
+            if wallet.balance > Decimal("0.00"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Tidak dapat menonaktifkan dompet yang masih memiliki saldo"
+                )
+
+        if data.wallet_name is not None:
+            wallet.wallet_name = data.wallet_name
+        if data.is_active is not None:
+            wallet.is_active = data.is_active
+
+        try:
+            self.db.commit()
+            self.db.refresh(wallet)
+            return wallet
+        except IntegrityError:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nama wallet sudah digunakan dalam keluarga ini"
+            )
+        except Exception as e:
+            self.db.rollback()
+            raise e
+
+    def delete_wallet(self, user: User, wallet_id: UUID) -> str:
+        """Delete or soft-delete a wallet based on transaction history."""
+        wallet = self.db.execute(
+            select(Wallet)
+            .where(Wallet.id == wallet_id)
+            .where(Wallet.family_id == user.family_id)
+        ).scalar_one_or_none()
+
+        if not wallet:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Wallet tidak ditemukan"
+            )
+
+        # Minimum active wallet guard
+        if wallet.is_active:
+            active_count = self.db.execute(
+                select(func.count(Wallet.id))
+                .where(Wallet.family_id == user.family_id)
+                .where(Wallet.is_active == True)
+            ).scalar()
+            if active_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Keluarga harus memiliki minimal satu wallet aktif"
+                )
+
+        # Check for existing transactions
+        txn_count = self.db.execute(
+            select(func.count(Transaction.id))
+            .where(Transaction.wallet_id == wallet_id)
+        ).scalar()
+
+        try:
+            if txn_count == 0:
+                # Hard delete — no transaction history
+                self.db.delete(wallet)
+                self.db.commit()
+                return "Wallet berhasil dihapus"
+            else:
+                # Soft delete — preserve transaction history
+                if wallet.balance > Decimal("0.00"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Tidak dapat menonaktifkan dompet yang masih memiliki saldo"
+                    )
+                wallet.is_active = False
+                self.db.commit()
+                return "Wallet berhasil dinonaktifkan"
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.db.rollback()
+            raise e
