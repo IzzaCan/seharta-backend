@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 
 from app.models.user import User
@@ -96,7 +96,7 @@ class FamilyService:
             raise HTTPException(status_code=400, detail="User tidak tergabung dalam dompet bersama")
 
         family = self.db.execute(
-            select(Family).where(Family.id == current_user.family_id)
+            select(Family).options(selectinload(Family.users)).where(Family.id == current_user.family_id)
         ).scalar_one_or_none()
 
         if not family:
@@ -110,7 +110,7 @@ class FamilyService:
 
         try:
             family = self.db.execute(
-                select(Family).where(Family.id == current_user.family_id)
+                select(Family).options(selectinload(Family.users)).where(Family.id == current_user.family_id)
             ).scalar_one_or_none()
 
             if not family:
