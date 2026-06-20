@@ -13,12 +13,15 @@ from app.schemas.user import (
     TokenResponse,
     UserResponse,
     UserUpdateProfile,
-    UserUpdatePassword
+    UserUpdatePassword,
+    VerifyEmailRequest,
+    ResendVerificationRequest
 )
 
 from app.core.security import verify_password, hash_password
 
 from app.services.auth_service import AuthService
+from app.services.otp_service import OTPService
 
 from app.api.dependencies import get_current_user
 
@@ -41,6 +44,30 @@ def register(
     auth_service = AuthService(db)
 
     return auth_service.register(user_data)
+
+
+# Verify Email
+@router.post("/verify-email")
+def verify_email(
+    verify_data: VerifyEmailRequest,
+    db: Session = Depends(get_db)
+):
+    otp_service = OTPService(db)
+    otp_service.verify_otp(verify_data.email, verify_data.otp)
+    
+    return {"message": "Email berhasil diverifikasi"}
+
+
+# Resend Verification
+@router.post("/resend-verification")
+def resend_verification(
+    resend_data: ResendVerificationRequest,
+    db: Session = Depends(get_db)
+):
+    auth_service = AuthService(db)
+    auth_service.resend_verification(resend_data.email)
+    
+    return {"message": "OTP verifikasi telah dikirim ulang ke email Anda"}
 
 
 # Login

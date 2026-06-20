@@ -30,6 +30,13 @@ class UserUpdatePassword(BaseModel):
     old_password: str
     new_password: str
 
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(..., min_length=6, max_length=6)
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
 
 # Response Schemas
 class UserResponse(UserBase):

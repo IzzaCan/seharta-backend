@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     # Gemini OCR API
     GEMINI_API_KEY: str = ""
 
+    # Resend Email
+    RESEND_API_KEY: str
+    RESEND_SENDER_EMAIL: str
+    RESEND_SENDER_NAME: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore"
