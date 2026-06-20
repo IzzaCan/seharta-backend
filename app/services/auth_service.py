@@ -25,6 +25,8 @@ from app.schemas.user import (
 )
 
 from app.repositories.user_repository import UserRepository
+from app.services.otp_service import OTPService
+from app.services.email_service import EmailService
 
 
 from app.core.logger import log_activity
@@ -64,6 +66,18 @@ class AuthService:
 
         # Save user
         user = UserRepository.create(self.db, user)
+
+        # Generate OTP
+        otp_service = OTPService(self.db)
+        otp_code = otp_service.generate_otp(user)
+
+        # Send Verification Email
+        try:
+            EmailService.send_verification_email(user.email, otp_code)
+        except Exception as e:
+            # Log error but don't delete OTP, allow user to resend later
+            import logging
+            logging.error(f"Failed to send email to {user.email}: {str(e)}")
 
         # Generate tokens
         access_token = create_access_token(str(user.id))
@@ -125,6 +139,13 @@ class AuthService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is inactive"
             )
+            
+        # Check verified status
+        if not user.is_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email belum diverifikasi"
+            )
 
         # Generate tokens
         access_token = create_access_token(str(user.id))
@@ -145,6 +166,35 @@ class AuthService:
             user=UserResponse.model_validate(user)
         )
 
+    # Resend Verification
+    def resend_verification(self, email: str) -> None:
+        user = UserRepository.get_by_email(self.db, email)
+        if not user:
+            # Silently return to prevent email enumeration, or raise error. 
+            # We'll raise error for better UX in mobile app.
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Email tidak ditemukan"
+            )
+            
+        if user.is_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email sudah diverifikasi"
+            )
+            
+        otp_service = OTPService(self.db)
+        otp_code = otp_service.resend_otp(user)
+        
+        try:
+            EmailService.send_verification_email(user.email, otp_code)
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to send email to {user.email}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Gagal mengirim email verifikasi"
+            )
 
     # Google Login
     def google_login(
