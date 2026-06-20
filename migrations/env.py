@@ -13,6 +13,7 @@ from app.models.family import Family, PairingCode
 from app.models.wallet import Wallet
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.models.email_verification import EmailVerification
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
