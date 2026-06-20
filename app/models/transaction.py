@@ -75,3 +75,11 @@ class Transaction(Base):
     wallet: Mapped["Wallet"] = relationship("Wallet", back_populates="transactions")
     user: Mapped[Optional["User"]] = relationship("User")
     category: Mapped["Category"] = relationship("Category", back_populates="transactions")
+
+    @property
+    def creator_name(self) -> Optional[str]:
+        return self.user.full_name if self.user else None
+
+    @property
+    def creator_avatar_url(self) -> Optional[str]:
+        return self.user.avatar_url if self.user else None
