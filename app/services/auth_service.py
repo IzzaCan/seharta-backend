@@ -1,4 +1,5 @@
 from uuid import UUID
+import logging
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -16,7 +17,6 @@ from app.core.security import (
 )
 
 from app.models.user import User
-
 from app.schemas.user import (
     UserCreate,
     UserLogin,
@@ -27,9 +27,8 @@ from app.schemas.user import (
 from app.repositories.user_repository import UserRepository
 from app.services.otp_service import OTPService
 from app.services.email_service import EmailService
-
-
 from app.core.logger import log_activity
+
 
 class AuthService:
     """Authentication business logic"""
@@ -37,46 +36,45 @@ class AuthService:
     def __init__(self, db: Session):
         self.db = db
 
-    # Register
     def register(
         self,
         user_data: UserCreate
     ) -> TokenResponse:
 
         # Check existing email
-        existing_user = UserRepository.get_by_email(
-            self.db,
-            user_data.email
-        )
-
+        existing_user = UserRepository.get_by_email(self.db, user_data.email)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
 
-        # Create user
-        user = User(
-            full_name=user_data.full_name,
-            email=user_data.email,
-            password_hash=hash_password(user_data.password),
-            is_active=True,
-            is_verified=False
-        )
+        try:
+            # Create user entity
+            user = User(
+                full_name=user_data.full_name,
+                email=user_data.email,
+                password_hash=hash_password(user_data.password),
+                is_active=True,
+                is_verified=False
+            )
+            user = UserRepository.create(self.db, user)
 
-        # Save user
-        user = UserRepository.create(self.db, user)
+            # Generate OTP (Murni DB operation)
+            otp_service = OTPService(self.db)
+            otp_code = otp_service.generate_otp(user)
 
-        # Generate OTP
-        otp_service = OTPService(self.db)
-        otp_code = otp_service.generate_otp(user)
+            # Selesaikan transaksi DB utama terlebih dahulu agar data aman ter-commit
+            self.db.commit()
 
-        # Send Verification Email
+        except Exception as e:
+            self.db.rollback()
+            raise e
+
+        # Kirim Verification Email (Synchronous)
         try:
             EmailService.send_verification_email(user.email, otp_code)
         except Exception as e:
-            # Log error but don't delete OTP, allow user to resend later
-            import logging
             logging.error(f"Failed to send email to {user.email}: {str(e)}")
 
         # Generate tokens
@@ -96,19 +94,10 @@ class AuthService:
             refresh_token=refresh_token,
             user=UserResponse.model_validate(user)
         )
-        
 
     # Login
-    def login(
-        self,
-        login_data: UserLogin
-    ) -> TokenResponse:
-
-        # Find user
-        user = UserRepository.get_by_email(
-            self.db,
-            login_data.email
-        )
+    def login(self, login_data: UserLogin) -> TokenResponse:
+        user = UserRepository.get_by_email(self.db, login_data.email)
 
         if not user:
             raise HTTPException(
@@ -124,10 +113,7 @@ class AuthService:
             )
 
         # Verify password
-        if not verify_password(
-            login_data.password,
-            user.password_hash
-        ):
+        if not verify_password(login_data.password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
@@ -151,7 +137,6 @@ class AuthService:
         access_token = create_access_token(str(user.id))
         refresh_token = create_refresh_token(str(user.id))
 
-
         # Log activity
         log_activity(
             action="USER_LOGIN",
@@ -166,12 +151,9 @@ class AuthService:
             user=UserResponse.model_validate(user)
         )
 
-    # Resend Verification
     def resend_verification(self, email: str) -> None:
         user = UserRepository.get_by_email(self.db, email)
         if not user:
-            # Silently return to prevent email enumeration, or raise error. 
-            # We'll raise error for better UX in mobile app.
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Email tidak ditemukan"
@@ -183,13 +165,17 @@ class AuthService:
                 detail="Email sudah diverifikasi"
             )
             
-        otp_service = OTPService(self.db)
-        otp_code = otp_service.resend_otp(user)
+        try:
+            otp_service = OTPService(self.db)
+            otp_code = otp_service.resend_otp(user)
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            raise e
         
         try:
             EmailService.send_verification_email(user.email, otp_code)
         except Exception as e:
-            import logging
             logging.error(f"Failed to send email to {user.email}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -197,22 +183,15 @@ class AuthService:
             )
 
     # Google Login
-    def google_login(
-        self,
-        google_token: str
-    ) -> TokenResponse:
-
+    def google_login(self, google_token: str) -> TokenResponse:
         try:
-            # Verify Google token
             request = google.auth.transport.requests.Request()
-
             id_info = id_token.verify_oauth2_token(
                 google_token,
                 request,
                 settings.GOOGLE_CLIENT_ID
             )
 
-            # Extract Google user info
             google_id = id_info.get("sub")
             email = id_info.get("email")
             full_name = id_info.get("name", "")
@@ -224,51 +203,44 @@ class AuthService:
                     detail="Google account email not found"
                 )
 
-            # Find existing user
-            user = UserRepository.get_by_google_id(
-                self.db,
-                google_id
-            )
+            # Context block untuk manajemen penulisan/pembaruan data ke DB
+            try:
+                user = UserRepository.get_by_google_id(self.db, google_id)
 
-            # Fallback check by email
-            if not user:
-                user = UserRepository.get_by_email(
-                    self.db,
-                    email
-                )
+                if not user:
+                    user = UserRepository.get_by_email(self.db, email)
 
-            # Create new user
-            if not user:
-
-                user = User(
-                    full_name=full_name,
-                    email=email,
-                    google_id=google_id,
-                    avatar_url=avatar_url,
-                    password_hash=None,
-                    is_active=True,
-                    is_verified=True
-                )
-
-                user = UserRepository.create(self.db, user)
-
-            else:
-                # Update Google info if needed
-                updated = False
-
-                if not user.google_id:
-                    user.google_id = google_id
-                    updated = True
-
-                if not user.avatar_url and avatar_url:
-                    user.avatar_url = avatar_url
-                    updated = True
-
-                if updated:
-                    user = UserRepository.update(
-                        self.db,
-                        user
+                if not user:
+                    user = User(
+                        full_name=full_name,
+                        email=email,
+                        google_id=google_id,
+                        avatar_url=avatar_url,
+                        password_hash=None,
+                        is_active=True,
+                        is_verified=True
                     )
+                    user = UserRepository.create(self.db, user)
+                else:
+                    updated = False
+                    if not user.google_id:
+                        user.google_id = google_id
+                        updated = True
+                    if avatar_url:
+                        if not user.avatar_url and avatar_url:
+                            user.avatar_url = avatar_url
+                            updated = True
+                    if not user.is_verified:
+                        user.is_verified = True
+                        updated = True
+
+                    if updated:
+                        user = UserRepository.update(self.db, user)
+                
+                self.db.commit()
+            except Exception as db_exc:
+                self.db.rollback()
+                raise db_exc
 
             # Generate tokens
             access_token = create_access_token(str(user.id))
@@ -287,20 +259,11 @@ class AuthService:
             )
 
     # Get User
-    def get_user_by_id(
-        self,
-        user_id: UUID
-    ) -> User:
-
-        user = UserRepository.get_by_id(
-            self.db,
-            user_id
-        )
-
+    def get_user_by_id(self, user_id: UUID) -> User:
+        user = UserRepository.get_by_id(self.db, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-
         return user
