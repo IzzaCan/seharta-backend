@@ -226,9 +226,10 @@ class AuthService:
                     if not user.google_id:
                         user.google_id = google_id
                         updated = True
-                    if not user.avatar_url and avatar_url:
-                        user.avatar_url = avatar_url
-                        updated = True
+                    if avatar_url:
+                        if not user.avatar_url and avatar_url:
+                            user.avatar_url = avatar_url
+                            updated = True
                     if not user.is_verified:
                         user.is_verified = True
                         updated = True
