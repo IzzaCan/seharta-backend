@@ -15,13 +15,16 @@ from app.schemas.user import (
     UserUpdateProfile,
     UserUpdatePassword,
     VerifyEmailRequest,
-    ResendVerificationRequest
+    ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest
 )
 
 from app.core.security import verify_password, hash_password
 
 from app.services.auth_service import AuthService
 from app.services.otp_service import OTPService
+from app.services.password_reset_service import PasswordResetService
 
 from app.api.dependencies import get_current_user
 
@@ -83,6 +86,34 @@ def login(
     auth_service = AuthService(db)
 
     return auth_service.login(login_data)
+
+
+# Forgot Password
+@router.post("/forgot-password")
+def forgot_password(
+    forgot_data: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    service = PasswordResetService(db)
+    service.forgot_password(forgot_data.email)
+    
+    return {"message": "Jika email terdaftar, instruksi reset password telah dikirim."}
+
+
+# Reset Password
+@router.post("/reset-password")
+def reset_password(
+    reset_data: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    service = PasswordResetService(db)
+    service.reset_password(
+        reset_data.email, 
+        reset_data.otp, 
+        reset_data.new_password
+    )
+    
+    return {"message": "Password berhasil diubah. Silakan login kembali."}
 
 
 # Google Login

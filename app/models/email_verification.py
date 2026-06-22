@@ -44,6 +44,12 @@ class EmailVerification(Base):
         nullable=False
     )
     
+    purpose: Mapped[str] = mapped_column(
+        String,
+        default="email_verification",
+        nullable=False
+    )
+    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
