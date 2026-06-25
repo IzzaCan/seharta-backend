@@ -134,3 +134,35 @@ class AiService:
                 "Sabun Mandi Cair"
             ]
         }
+
+    def generate_financial_insight(self, transactions_summary: str) -> str:
+        """
+        Generates a short financial insight based on recent transactions using Gemini 2.5 Flash.
+        """
+        if not self.api_key:
+            logger.info("No Gemini API key set. Returning mock financial insight.")
+            return "Pengeluaran Anda bulan ini stabil. Pertimbangkan untuk menyisihkan lebih banyak ke tabungan darurat."
+
+        prompt = f"""
+        Anda adalah asisten perencana keuangan keluarga yang cerdas dan ramah.
+        Berikut adalah ringkasan transaksi terbaru dari sebuah keluarga:
+        {transactions_summary}
+        
+        Berikan 1 hingga 2 kalimat insight (wawasan) singkat, positif, dan membangun mengenai pengeluaran atau pemasukan mereka.
+        Gunakan bahasa Indonesia yang santai, ringkas, dan memotivasi. Tidak perlu memberikan salam.
+        Langsung berikan insight-nya.
+        """
+
+        try:
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            logger.info("Sending transaction summary to Gemini 2.5 Flash for insights...")
+            response = model.generate_content(prompt)
+            
+            insight = response.text.strip()
+            logger.info(f"Generated insight: {insight}")
+            return insight
+
+        except Exception as e:
+            logger.error(f"Error generating financial insight with Gemini: {e}")
+            return "Fokus pada pengeluaran prioritas minggu ini. Terus pertahankan pengelolaan keuangan yang baik!"
+
