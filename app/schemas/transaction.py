@@ -37,7 +37,7 @@ class TransactionResponse(BaseModel):
     family_id: UUID
     wallet_id: UUID
     user_id: Optional[UUID] = None
-    category_id: UUID
+    category_id: Optional[UUID] = None
     amount: Decimal
     transaction_type: str
     description: Optional[str] = None
