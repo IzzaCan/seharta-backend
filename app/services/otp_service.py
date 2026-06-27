@@ -16,14 +16,15 @@ class OTPService:
     def __init__(self, db: Session):
         self.db = db
 
-    def generate_otp(self, user: User) -> str:
+    def generate_otp(self, user: User, purpose: str = "email_verification") -> str:
         """
         Invalidates existing active OTPs, generates a new one, saves it, and returns the OTP value.
         """
         # Invalidate old OTPs
         active_otps = self.db.query(EmailVerification).filter(
             EmailVerification.user_id == user.id,
-            EmailVerification.is_used == False
+            EmailVerification.is_used == False,
+            EmailVerification.purpose == purpose
         ).all()
         
         for old_otp in active_otps:
@@ -38,7 +39,8 @@ class OTPService:
             otp_code=otp_code,
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
             attempt_count=0,
-            is_used=False
+            is_used=False,
+            purpose=purpose
         )
         
         self.db.add(new_otp)
@@ -46,7 +48,7 @@ class OTPService:
         
         return otp_code
 
-    def verify_otp(self, email: str, otp: str) -> bool:
+    def verify_otp(self, email: str, otp: str, purpose: str = "email_verification") -> bool:
         """
         Verifies the provided OTP for the given email.
         """
@@ -61,7 +63,8 @@ class OTPService:
         # Find active OTP for user
         active_otp = self.db.query(EmailVerification).filter(
             EmailVerification.user_id == user.id,
-            EmailVerification.is_used == False
+            EmailVerification.is_used == False,
+            EmailVerification.purpose == purpose
         ).order_by(EmailVerification.created_at.desc()).first()
 
         if not active_otp:
@@ -104,8 +107,8 @@ class OTPService:
         
         return True
 
-    def resend_otp(self, user: User) -> str:
+    def resend_otp(self, user: User, purpose: str = "email_verification") -> str:
         """
         Generates and returns a new OTP for resending.
         """
-        return self.generate_otp(user)
+        return self.generate_otp(user, purpose)

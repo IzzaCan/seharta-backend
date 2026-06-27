@@ -83,3 +83,11 @@ class Transaction(Base):
     @property
     def creator_avatar_url(self) -> Optional[str]:
         return self.user.avatar_url if self.user else None
+
+    @property
+    def wallet_name(self) -> Optional[str]:
+        return self.wallet.wallet_name if self.wallet else None
+
+    @property
+    def category_name(self) -> Optional[str]:
+        return self.category.name if self.category else None
