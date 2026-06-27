@@ -28,7 +28,9 @@ class AnalyticsService:
             .outerjoin(Category, Transaction.category_id == Category.id)
             .filter(
                 Transaction.family_id == family_id,
-                Transaction.transaction_date >= thirty_days_ago
+                Transaction.transaction_date >= thirty_days_ago,
+                func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]),
+                Transaction.category_id.isnot(None)
             )
             .order_by(Transaction.transaction_date.desc())
             .limit(20)
