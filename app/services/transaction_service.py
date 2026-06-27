@@ -201,6 +201,12 @@ class TransactionService:
                 detail="Transaksi tidak ditemukan"
             )
 
+        if txn.transaction_type.upper() == "TRANSFER":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transaksi transfer internal tidak dapat diubah secara langsung"
+            )
+
         # Determine new values (or keep old)
         new_wallet_id = data.wallet_id if data.wallet_id is not None else txn.wallet_id
         new_category_id = data.category_id if data.category_id is not None else txn.category_id
@@ -214,6 +220,13 @@ class TransactionService:
             new_txn_type = new_category.type
         else:
             new_txn_type = txn.transaction_type
+
+        # Enforce business rule
+        if new_txn_type.upper() != "TRANSFER" and new_category_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="category_id is required for INCOME and EXPENSE transactions"
+            )
 
         old_wallet_id = txn.wallet_id
         old_amount = Decimal(str(txn.amount))
@@ -266,6 +279,12 @@ class TransactionService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Transaksi tidak ditemukan"
+            )
+
+        if txn.transaction_type.upper() == "TRANSFER":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transaksi transfer internal tidak dapat dihapus secara langsung"
             )
 
         wallet = self._lock_wallet(txn.wallet_id, user.family_id)

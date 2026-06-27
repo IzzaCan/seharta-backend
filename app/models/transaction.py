@@ -15,6 +15,11 @@ class Transaction(Base):
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_transactions_amount_positive"),
+        CheckConstraint(
+            "((UPPER(transaction_type) IN ('INCOME', 'EXPENSE') AND category_id IS NOT NULL) OR "
+            "(UPPER(transaction_type) = 'TRANSFER' AND category_id IS NULL))",
+            name="ck_transactions_category_rules"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -37,10 +42,10 @@ class Transaction(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True
     )
-    category_id: Mapped[uuid.UUID] = mapped_column(
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("categories.id", ondelete="RESTRICT"),
-        nullable=False
+        nullable=True
     )
     amount: Mapped[float] = mapped_column(
         Numeric(12, 2),

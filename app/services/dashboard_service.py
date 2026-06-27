@@ -32,7 +32,8 @@ class DashboardService:
             select(func.sum(Transaction.amount)).where(
                 Transaction.family_id == family_id,
                 Transaction.transaction_date >= start_of_month,
-                func.upper(Transaction.transaction_type) == "INCOME"
+                func.upper(Transaction.transaction_type) == "INCOME",
+                Transaction.category_id.isnot(None)
             )
         ).scalar() or Decimal("0")
         
@@ -40,7 +41,8 @@ class DashboardService:
             select(func.sum(Transaction.amount)).where(
                 Transaction.family_id == family_id,
                 Transaction.transaction_date >= start_of_month,
-                func.upper(Transaction.transaction_type) == "EXPENSE"
+                func.upper(Transaction.transaction_type) == "EXPENSE",
+                Transaction.category_id.isnot(None)
             )
         ).scalar() or Decimal("0")
         
@@ -52,7 +54,11 @@ class DashboardService:
                 selectinload(Transaction.wallet),
                 selectinload(Transaction.category)
             )
-            .where(Transaction.family_id == family_id)
+            .where(
+                Transaction.family_id == family_id,
+                func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]),
+                Transaction.category_id.isnot(None)
+            )
             .order_by(Transaction.transaction_date.desc())
             .limit(10)
         )

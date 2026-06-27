@@ -8,6 +8,7 @@ from app.api.v1.endpoints.category import router as category_router
 from app.api.v1.endpoints.transaction import router as transaction_router
 from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.dashboard import router as dashboard_router
+from app.api.v1.endpoints.goal import router as goal_router
 
 api_router = APIRouter()
 
@@ -57,4 +58,10 @@ api_router.include_router(
     dashboard_router,
     prefix="/dashboard",
     tags=["Dashboard"]
+)
+
+api_router.include_router(
+    goal_router,
+    prefix="/goals",
+    tags=["Goals"]
 )
