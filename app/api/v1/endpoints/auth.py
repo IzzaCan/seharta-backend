@@ -217,3 +217,9 @@ def upload_avatar(
     db.commit()
     db.refresh(current_user)
     return UserResponse.model_validate(current_user)
+
+# Google Config
+@router.get("/google/config")
+def get_google_config():
+    from app.core.config import settings
+    return {"client_id": settings.GOOGLE_CLIENT_ID}

@@ -26,13 +26,4 @@ def get_financial_insight(
     insight_text = analytics_service.get_financial_insight(current_user.family_id)
     return {"insight": insight_text}
 
-@router.get("/summary")
-def get_balance_summary(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_family_user),
-    analytics_service: AnalyticsService = Depends(get_analytics_service)
-) -> Any:
-    """
-    Get family balance summary and percentage change compared to 30 days ago.
-    """
-    return analytics_service.get_balance_summary(current_user.family_id)
+
