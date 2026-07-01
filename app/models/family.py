@@ -23,6 +23,11 @@ class Family(Base):
         server_default=func.now(),
         nullable=False
     )
+    ai_insight: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    insight_generated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
 
     # Relationships
     users: Mapped[list["User"]] = relationship("User", back_populates="family")
