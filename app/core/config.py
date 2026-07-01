@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     # Gemini OCR API
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL_NAME: str = "gemini-3.5-flash"
 
     # Resend Email
     RESEND_API_KEY: str

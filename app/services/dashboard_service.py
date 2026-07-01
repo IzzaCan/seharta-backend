@@ -56,8 +56,10 @@ class DashboardService:
             )
             .where(
                 Transaction.family_id == family_id,
-                func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]),
-                Transaction.category_id.isnot(None)
+                (
+                    (func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]) & Transaction.category_id.isnot(None)) |
+                    (func.upper(Transaction.transaction_type) == "TRANSFER")
+                )
             )
             .order_by(Transaction.transaction_date.desc())
             .limit(10)

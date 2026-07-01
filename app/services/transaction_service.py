@@ -159,7 +159,15 @@ class TransactionService:
     ):
         """Paginated + filtered transaction listing within the family scope."""
         from sqlalchemy.orm import selectinload
-        stmt = select(Transaction).options(selectinload(Transaction.user)).where(Transaction.family_id == user.family_id)
+        stmt = (
+            select(Transaction)
+            .options(
+                selectinload(Transaction.user),
+                selectinload(Transaction.wallet),
+                selectinload(Transaction.category),
+            )
+            .where(Transaction.family_id == user.family_id)
+        )
 
         if wallet_id:
             stmt = stmt.where(Transaction.wallet_id == wallet_id)
