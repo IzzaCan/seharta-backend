@@ -27,15 +27,15 @@ class AiService:
 
     def generate_text(self, prompt: str) -> str:
         """
-        Generates text using Gemini 2.5 Flash based on the given prompt.
+        Generates text using Gemini 3.5 Flash based on the given prompt.
         Throws ValueError if no API key is present.
         """
         if self.is_mock_mode():
             raise ValueError("AiService is in mock mode. Cannot generate text from Gemini.")
             
         try:
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            logger.info("Sending prompt to Gemini 2.5 Flash for text generation...")
+            model = genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
+            logger.info("Sending prompt to Gemini 3.5 Flash for text generation...")
             response = model.generate_content(prompt)
             
             result = response.text.strip()
@@ -47,14 +47,14 @@ class AiService:
 
     def generate_json(self, prompt: str, image_bytes: bytes = None, mime_type: str = "image/jpeg") -> dict:
         """
-        Generates and parses JSON using Gemini 2.5 Flash based on the given prompt and optional image.
+        Generates and parses JSON using Gemini 3.5 Flash based on the given prompt and optional image.
         Throws ValueError if no API key is present.
         """
         if self.is_mock_mode():
             raise ValueError("AiService is in mock mode. Cannot generate JSON from Gemini.")
 
         try:
-            model = genai.GenerativeModel("gemini-2.5-flash")
+            model = genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
             
             contents = []
             if image_bytes:
@@ -63,9 +63,9 @@ class AiService:
                     "data": image_bytes
                 }
                 contents.append(image_part)
-                logger.info(f"Sending prompt and image ({mime_type}) to Gemini 2.5 Flash...")
+                logger.info(f"Sending prompt and image ({mime_type}) to Gemini 3.5 Flash...")
             else:
-                logger.info("Sending prompt to Gemini 2.5 Flash...")
+                logger.info("Sending prompt to Gemini 3.5 Flash...")
                 
             contents.append(prompt)
             
@@ -103,4 +103,5 @@ class AiService:
         except json.JSONDecodeError as jde:
             logger.error(f"Failed to parse text as JSON. Text: {cleaned}. Error: {jde}")
             raise ValueError("Respons dari AI tidak berformat JSON yang valid")
+
 

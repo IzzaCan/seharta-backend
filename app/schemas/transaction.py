@@ -46,6 +46,8 @@ class TransactionResponse(BaseModel):
     updated_at: datetime
     creator_name: Optional[str] = None
     creator_avatar_url: Optional[str] = None
+    wallet_name: Optional[str] = None
+    category_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

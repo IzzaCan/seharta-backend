@@ -37,6 +37,9 @@ class AnalyticsService:
             .all()
         )
         
+        total_income = 0
+        total_expense = 0
+        
         if not recent_transactions:
             summary_text = "Belum ada transaksi dalam 30 hari terakhir."
         else:
@@ -46,6 +49,10 @@ class AnalyticsService:
                 cat_name = cat.name if cat else "Lainnya"
                 t_type = "Pengeluaran" if txn.transaction_type.upper() == "EXPENSE" else "Pemasukan"
                 summary_lines.append(f"- {txn.transaction_date.strftime('%Y-%m-%d')}: {t_type} Rp{txn.amount} ({cat_name}) - {txn.description or ''}")
+                if txn.transaction_type.upper() == "INCOME":
+                    total_income += txn.amount
+                elif txn.transaction_type.upper() == "EXPENSE":
+                    total_expense += txn.amount
             
             summary_text = "\n".join(summary_lines)
             
@@ -54,13 +61,17 @@ class AnalyticsService:
             return "Pengeluaran Anda bulan ini stabil. Pertimbangkan untuk menyisihkan lebih banyak ke tabungan darurat."
             
         prompt = f"""
-        Anda adalah asisten perencana keuangan keluarga yang cerdas dan ramah.
-        Berikut adalah ringkasan transaksi terbaru dari sebuah keluarga:
+        Anda adalah asisten keuangan keluarga yang bersahabat, suportif, dan praktis.
+        Berikut adalah ringkasan keuangan keluarga selama 30 hari terakhir:
+        - Total Pemasukan: Rp{total_income}
+        - Total Pengeluaran: Rp{total_expense}
+        
+        Riwayat transaksi terbaru:
         {summary_text}
         
-        Berikan 1 hingga 2 kalimat insight (wawasan) singkat, positif, dan membangun mengenai pengeluaran atau pemasukan mereka.
-        Gunakan bahasa Indonesia yang santai, ringkas, dan memotivasi. Tidak perlu memberikan salam.
-        Langsung berikan insight-nya.
+        Berikan TEPAT 1 kalimat pendek (maksimal 15-20 kata) berisi insight keuangan yang padat, informatif, dan berupa saran praktis langsung.
+        Jika pengeluaran melebihi pemasukan, langsung sebutkan 1 tindakan konkret untuk berhemat.
+        Gunakan bahasa Indonesia sehari-hari yang sopan, jelas, dan bersahabat. Hindari bahasa bertele-tele, kaku/teknis, dan jangan 'sok asik'. Jangan berikan salam pembuka atau pengantar, langsung berikan kalimat sarannya.
         """
         
         try:
@@ -68,4 +79,3 @@ class AnalyticsService:
         except Exception as e:
             logger.error(f"Error generating financial insight: {e}")
             return "Fokus pada pengeluaran prioritas minggu ini. Terus pertahankan pengelolaan keuangan yang baik!"
-

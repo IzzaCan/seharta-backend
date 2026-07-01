@@ -185,12 +185,24 @@ class AuthService:
     # Google Login
     def google_login(self, google_token: str) -> TokenResponse:
         try:
-            request = google.auth.transport.requests.Request()
-            id_info = id_token.verify_oauth2_token(
-                google_token,
-                request,
-                settings.GOOGLE_CLIENT_ID
-            )
+            try:
+                request = google.auth.transport.requests.Request()
+                id_info = id_token.verify_oauth2_token(
+                    google_token,
+                    request,
+                    settings.GOOGLE_CLIENT_ID
+                )
+            except GoogleAuthError:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid Google token"
+                )
+            except Exception as e:
+                logging.error(f"Verification error: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Error verifikasi token Google: {str(e)}"
+                )
 
             google_id = id_info.get("sub")
             email = id_info.get("email")
@@ -240,7 +252,11 @@ class AuthService:
                 self.db.commit()
             except Exception as db_exc:
                 self.db.rollback()
-                raise db_exc
+                logging.error(f"Database error during Google login: {db_exc}", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Database error: {str(db_exc)}"
+                )
 
             # Generate tokens
             access_token = create_access_token(str(user.id))
@@ -251,11 +267,13 @@ class AuthService:
                 refresh_token=refresh_token,
                 user=UserResponse.model_validate(user)
             )
-
-        except GoogleAuthError:
+        except HTTPException as http_exc:
+            raise http_exc
+        except Exception as e:
+            logging.error(f"Unexpected error in google_login: {e}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Google token"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Terjadi kesalahan internal: {str(e)}"
             )
 
     # Get User

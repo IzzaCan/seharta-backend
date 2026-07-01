@@ -26,3 +26,4 @@ def get_financial_insight(
     insight_text = analytics_service.get_financial_insight(current_user.family_id)
     return {"insight": insight_text}
 
+
