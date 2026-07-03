@@ -50,3 +50,4 @@ class Category(Base):
     # Relationships
     family: Mapped[Optional["Family"]] = relationship("Family", back_populates="categories")
     transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="category")
+    budgets: Mapped[list["Budget"]] = relationship("Budget", back_populates="category")

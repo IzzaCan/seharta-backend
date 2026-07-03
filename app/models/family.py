@@ -34,6 +34,7 @@ class Family(Base):
     pairing_codes: Mapped[list["PairingCode"]] = relationship("PairingCode", back_populates="family", cascade="all, delete-orphan")
     wallets: Mapped[list["Wallet"]] = relationship("Wallet", back_populates="family", cascade="all, delete-orphan")
     categories: Mapped[list["Category"]] = relationship("Category", back_populates="family", cascade="all, delete-orphan")
+    budgets: Mapped[list["Budget"]] = relationship("Budget", back_populates="family", cascade="all, delete-orphan")
 
 
 class PairingCode(Base):

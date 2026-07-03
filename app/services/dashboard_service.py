@@ -7,7 +7,8 @@ from sqlalchemy import select, func
 
 from app.models.transaction import Transaction
 from app.models.wallet import Wallet
-from app.schemas.dashboard import DashboardResponse
+from app.schemas.dashboard import DashboardResponse, DashboardBudgetSummary
+from app.services.budget_service import BudgetService
 
 
 class DashboardService:
@@ -66,10 +67,30 @@ class DashboardService:
         )
         recent_transactions = list(self.db.execute(transactions_stmt).scalars().all())
         
+        # Calculate budget summary for current month
+        budgets = BudgetService.list_budgets(self.db, family_id, month=now.month, year=now.year)
+        budget_summary = None
+        if budgets:
+            total_budget = sum(b.budget_amount for b in budgets)
+            total_spent = sum(b.spent_amount for b in budgets)
+            total_remaining = total_budget - total_spent
+            total_budget_categories = len(budgets)
+            over_budget_categories = sum(1 for b in budgets if b.is_over_budget)
+            
+            budget_summary = DashboardBudgetSummary(
+                total_budget=total_budget,
+                total_spent=total_spent,
+                total_remaining=total_remaining,
+                total_budget_categories=total_budget_categories,
+                over_budget_categories=over_budget_categories,
+                preview=budgets[:3] # Max 3 items for preview
+            )
+        
         return DashboardResponse(
             total_balance=total_balance,
             income_this_month=Decimal(str(income)),
             expense_this_month=Decimal(str(expense)),
             wallets=wallets,
-            recent_transactions=recent_transactions
+            recent_transactions=recent_transactions,
+            budget_summary=budget_summary
         )

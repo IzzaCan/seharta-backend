@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
+from app.schemas.budget import BudgetResponse
 
 class DashboardWalletResponse(BaseModel):
     """
@@ -31,6 +32,20 @@ class DashboardTransactionResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class DashboardBudgetSummary(BaseModel):
+    """
+    Lightweight budget summary for Dashboard/Home.
+    """
+    total_budget: Decimal
+    total_spent: Decimal
+    total_remaining: Decimal
+    total_budget_categories: int
+    over_budget_categories: int
+    preview: Optional[List[BudgetResponse]] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DashboardResponse(BaseModel):
     """
     Single response containing aggregated dashboard data.
@@ -40,3 +55,4 @@ class DashboardResponse(BaseModel):
     expense_this_month: Decimal
     wallets: List[DashboardWalletResponse]
     recent_transactions: List[DashboardTransactionResponse]
+    budget_summary: Optional[DashboardBudgetSummary] = None
