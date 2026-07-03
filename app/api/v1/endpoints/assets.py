@@ -1,7 +1,9 @@
 from typing import List
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+import shutil
+import os
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_family_user
@@ -81,3 +83,29 @@ def delete_asset(
         return MessageResponse(message="Asset successfully deleted")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+# Ensure static/assets folder exists
+os.makedirs("app/static/assets", exist_ok=True)
+
+@router.post("/upload", status_code=status.HTTP_200_OK)
+def upload_asset_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_family_user)
+):
+    """
+    Upload a photo or document for assets.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File tidak ditemukan")
+
+    file_ext = file.filename.split('.')[-1].lower()
+    if file_ext not in ["jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx"]:
+        raise HTTPException(status_code=400, detail="Format file tidak didukung")
+        
+    filename = f"{uuid.uuid4()}.{file_ext}"
+    filepath = f"app/static/assets/{filename}"
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    return {"url": f"/static/assets/{filename}"}
