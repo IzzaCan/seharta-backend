@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.db.session import SessionLocal
 from app.db.seed_categories import seed_global_categories
+from app.db.seed_assets import seed_global_asset_categories
 import os
 from fastapi.staticfiles import StaticFiles
 
@@ -16,6 +17,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_global_categories(db)
+        seed_global_asset_categories(db)
     finally:
         db.close()
     yield

@@ -16,6 +16,8 @@ from app.models.transaction import Transaction
 from app.models.email_verification import EmailVerification
 from app.models.goal import Goal
 from app.models.goal_contribution import GoalContribution
+from app.models.asset_category import AssetCategory
+from app.models.asset import Asset
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
