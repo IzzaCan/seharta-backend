@@ -11,10 +11,7 @@ from app.api.v1.endpoints.dashboard import router as dashboard_router
 from app.api.v1.endpoints.goal import router as goal_router
 from app.api.v1.endpoints.asset_category import router as asset_category_router
 from app.api.v1.endpoints.assets import router as assets_router
-<<<<<<< HEAD
 from app.api.v1.endpoints.budgets import router as budgets_router
-=======
->>>>>>> 0ebef8fa1dc44586eef266ee4a5051ed6b084e74
 
 api_router = APIRouter()
 
