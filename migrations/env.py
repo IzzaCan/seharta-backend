@@ -18,6 +18,7 @@ from app.models.goal import Goal
 from app.models.goal_contribution import GoalContribution
 from app.models.asset_category import AssetCategory
 from app.models.asset import Asset
+from app.models.budget import Budget
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
