@@ -9,6 +9,8 @@ from app.api.v1.endpoints.transaction import router as transaction_router
 from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.dashboard import router as dashboard_router
 from app.api.v1.endpoints.goal import router as goal_router
+from app.api.v1.endpoints.asset_category import router as asset_category_router
+from app.api.v1.endpoints.assets import router as assets_router
 
 api_router = APIRouter()
 
@@ -64,4 +66,16 @@ api_router.include_router(
     goal_router,
     prefix="/goals",
     tags=["Goals"]
+)
+
+api_router.include_router(
+    asset_category_router,
+    prefix="/asset-categories",
+    tags=["Asset Categories"]
+)
+
+api_router.include_router(
+    assets_router,
+    prefix="/assets",
+    tags=["Assets"]
 )
