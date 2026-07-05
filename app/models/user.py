@@ -78,3 +78,4 @@ class User(Base):
 
     # relationship
     family: Mapped[Optional["Family"]] = relationship("Family", back_populates="users")
+    budgets: Mapped[list["Budget"]] = relationship("Budget", back_populates="creator")

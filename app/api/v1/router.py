@@ -11,6 +11,7 @@ from app.api.v1.endpoints.dashboard import router as dashboard_router
 from app.api.v1.endpoints.goal import router as goal_router
 from app.api.v1.endpoints.asset_category import router as asset_category_router
 from app.api.v1.endpoints.assets import router as assets_router
+from app.api.v1.endpoints.budgets import router as budgets_router
 
 api_router = APIRouter()
 
@@ -78,4 +79,10 @@ api_router.include_router(
     assets_router,
     prefix="/assets",
     tags=["Assets"]
+)
+
+api_router.include_router(
+    budgets_router,
+    prefix="/budgets",
+    tags=["Budgets"]
 )
