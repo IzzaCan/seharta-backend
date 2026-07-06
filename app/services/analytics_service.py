@@ -6,7 +6,7 @@ from typing import Any, Optional, Tuple, List
 from uuid import UUID
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case, extract, distinct
+from sqlalchemy import func, case, extract, distinct, and_
 
 from app.models.transaction import Transaction
 from app.models.category import Category
@@ -92,6 +92,14 @@ class AnalyticsService:
             filter_metadata=filter_meta
         )
 
+    def _base_expense_filter(self, family_id: UUID, start_dt: datetime, end_dt: datetime):
+        return (
+            Transaction.family_id == family_id,
+            func.upper(Transaction.transaction_type) == 'EXPENSE',
+            Transaction.transaction_date >= start_dt,
+            Transaction.transaction_date <= end_dt
+        )
+
     def _get_overview(self, family_id: UUID, total_income: float, net_surplus: float, ownership_type: str) -> AnalyticsOverview:
         # Liquidity
         liquidity = self.db.query(func.coalesce(func.sum(Wallet.balance), 0.0)).filter(
@@ -149,10 +157,7 @@ class AnalyticsService:
         ).join(
             Transaction, Transaction.category_id == Category.id
         ).filter(
-            Transaction.family_id == family_id,
-            func.upper(Transaction.transaction_type) == 'EXPENSE',
-            Transaction.transaction_date >= start_dt,
-            Transaction.transaction_date <= end_dt
+            *self._base_expense_filter(family_id, start_dt, end_dt)
         ).group_by(Category.id, Category.name).order_by(func.sum(Transaction.amount).desc()).all()
         
         results = []
@@ -184,10 +189,7 @@ class AnalyticsService:
         ).outerjoin(
             Transaction, 
             (Transaction.category_id == Budget.category_id) & 
-            (Transaction.family_id == family_id) &
-            (func.upper(Transaction.transaction_type) == 'EXPENSE') &
-            (Transaction.transaction_date >= start_dt) &
-            (Transaction.transaction_date <= end_dt)
+            and_(*self._base_expense_filter(family_id, start_dt, end_dt))
         ).filter(
             Budget.family_id == family_id,
             Budget.month == month,
@@ -282,10 +284,7 @@ class AnalyticsService:
         ).join(
             Transaction, Transaction.user_id == User.id
         ).filter(
-            Transaction.family_id == family_id,
-            func.upper(Transaction.transaction_type) == 'EXPENSE',
-            Transaction.transaction_date >= start_dt,
-            Transaction.transaction_date <= end_dt
+            *self._base_expense_filter(family_id, start_dt, end_dt)
         ).group_by(User.id, User.full_name, User.avatar_url).all()
         
         total_fam_expense = sum(float(r.total_spent) for r in expenses_query)
@@ -320,10 +319,7 @@ class AnalyticsService:
         ).join(
             Category, Transaction.category_id == Category.id
         ).filter(
-            Transaction.family_id == family_id,
-            func.upper(Transaction.transaction_type) == 'EXPENSE',
-            Transaction.transaction_date >= start_dt,
-            Transaction.transaction_date <= end_dt
+            *self._base_expense_filter(family_id, start_dt, end_dt)
         ).group_by(Transaction.user_id, Category.name).subquery()
 
         # 2. Outer query with Window Function to pick the top category per user
@@ -347,10 +343,7 @@ class AnalyticsService:
             extract('hour', Transaction.transaction_date).label('hour'),
             func.count(Transaction.id).label('cnt')
         ).filter(
-            Transaction.family_id == family_id,
-            func.upper(Transaction.transaction_type) == 'EXPENSE',
-            Transaction.transaction_date >= start_dt,
-            Transaction.transaction_date <= end_dt
+            *self._base_expense_filter(family_id, start_dt, end_dt)
         ).group_by(
             Transaction.user_id,
             extract('dow', Transaction.transaction_date),

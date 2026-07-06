@@ -28,24 +28,37 @@ class DashboardService:
         now = datetime.now(timezone.utc)
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-        # Calculate income and expense this month
-        income = self.db.execute(
-            select(func.sum(Transaction.amount)).where(
+        # Calculate income and expense this month in a single query
+        from sqlalchemy import case
+        inc_exp_res = self.db.execute(
+            select(
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Transaction.transaction_type == "INCOME", Transaction.amount),
+                            else_=0
+                        )
+                    ),
+                    0
+                ).label("income"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Transaction.transaction_type == "EXPENSE", Transaction.amount),
+                            else_=0
+                        )
+                    ),
+                    0
+                ).label("expense")
+            ).where(
                 Transaction.family_id == family_id,
                 Transaction.transaction_date >= start_of_month,
-                func.upper(Transaction.transaction_type) == "INCOME",
                 Transaction.category_id.isnot(None)
             )
-        ).scalar() or Decimal("0")
+        ).first()
         
-        expense = self.db.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.family_id == family_id,
-                Transaction.transaction_date >= start_of_month,
-                func.upper(Transaction.transaction_type) == "EXPENSE",
-                Transaction.category_id.isnot(None)
-            )
-        ).scalar() or Decimal("0")
+        income = Decimal(str(inc_exp_res.income)) if inc_exp_res else Decimal("0")
+        expense = Decimal(str(inc_exp_res.expense)) if inc_exp_res else Decimal("0")
         
         # Fetch latest 10 transactions
         transactions_stmt = (
