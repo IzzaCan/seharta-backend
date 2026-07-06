@@ -2,7 +2,7 @@ from datetime import datetime
 import uuid
 from typing import Optional
 
-from sqlalchemy import String, DateTime, ForeignKey, Numeric, CheckConstraint
+from sqlalchemy import String, DateTime, ForeignKey, Numeric, CheckConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
@@ -20,6 +20,7 @@ class Transaction(Base):
             "(UPPER(transaction_type) = 'TRANSFER' AND category_id IS NULL))",
             name="ck_transactions_category_rules"
         ),
+        Index("ix_transactions_family_date", "family_id", "transaction_date"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

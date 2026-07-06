@@ -3,7 +3,7 @@ import uuid
 from typing import Optional
 from decimal import Decimal
 
-from sqlalchemy import String, DateTime, ForeignKey, Numeric, CheckConstraint, UniqueConstraint, Integer
+from sqlalchemy import String, DateTime, ForeignKey, Numeric, CheckConstraint, UniqueConstraint, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
@@ -18,6 +18,7 @@ class Budget(Base):
         CheckConstraint("month >= 1 AND month <= 12", name="ck_budgets_month_valid"),
         CheckConstraint("year >= 2000", name="ck_budgets_year_valid"),
         UniqueConstraint("family_id", "category_id", "month", "year", name="uq_family_category_month_year"),
+        Index("ix_budgets_family_month_year", "family_id", "month", "year"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
