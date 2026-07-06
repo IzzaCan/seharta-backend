@@ -3,7 +3,7 @@ import uuid
 from typing import Optional
 from decimal import Decimal
 
-from sqlalchemy import String, DateTime, ForeignKey, Numeric, CheckConstraint
+from sqlalchemy import String, DateTime, ForeignKey, Numeric, CheckConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
@@ -33,6 +33,7 @@ class Asset(Base):
             "(UPPER(ownership_type) = 'JOINT' AND owner_user_id IS NULL))",
             name="ck_assets_ownership_rules"
         ),
+        Index("ix_assets_family", "family_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
