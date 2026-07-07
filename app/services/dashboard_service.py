@@ -35,7 +35,7 @@ class DashboardService:
                 func.coalesce(
                     func.sum(
                         case(
-                            (Transaction.transaction_type == "INCOME", Transaction.amount),
+                            (func.upper(Transaction.transaction_type) == "INCOME", Transaction.amount),
                             else_=0
                         )
                     ),
@@ -44,7 +44,7 @@ class DashboardService:
                 func.coalesce(
                     func.sum(
                         case(
-                            (Transaction.transaction_type == "EXPENSE", Transaction.amount),
+                            (func.upper(Transaction.transaction_type) == "EXPENSE", Transaction.amount),
                             else_=0
                         )
                     ),
