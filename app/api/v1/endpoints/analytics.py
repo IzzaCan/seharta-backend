@@ -19,7 +19,7 @@ def get_analytics_service(db: Session = Depends(get_db)) -> AnalyticsService:
 def get_analytics(
     month: Optional[int] = Query(None, description="Target month (1-12)"),
     year: Optional[int] = Query(None, description="Target year"),
-    ownership_type: str = Query("ALL", regex="^(ALL|JOINT|PERSONAL)$"),
+    ownership_type: str = Query("ALL", pattern="^(ALL|JOINT|PERSONAL)$"),
     start_date: Optional[str] = Query(None, description="Start date in YYYY-MM-DD format"),
     end_date: Optional[str] = Query(None, description="End date in YYYY-MM-DD format"),
     db: Session = Depends(get_db),

@@ -449,7 +449,7 @@ class AnalyticsService:
             try:
                 # Menghilangkan tzinfo agar bisa dibandingkan dengan datetime.utcnow() yang naive
                 generated_at = family.insight_generated_at.replace(tzinfo=None)
-                if datetime.utcnow() - generated_at < timedelta(hours=12):
+                if datetime.utcnow() - generated_at < timedelta(hours=6):
                     logger.info(f"Returning database cached financial insight for family {family_id}")
                     return family.ai_insight
             except Exception as e:
