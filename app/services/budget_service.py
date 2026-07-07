@@ -7,7 +7,7 @@ from sqlalchemy import select, extract, func
 
 from app.models.budget import Budget
 from app.models.category import Category
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.schemas.budget import BudgetCreate, BudgetUpdate
 
 
@@ -35,7 +35,7 @@ class BudgetService:
         category = db.execute(select(Category).where(Category.id == category_id)).scalar_one_or_none()
         if not category:
             raise ValueError("Category not found")
-        if category.type.upper() != "EXPENSE":
+        if category.type.upper() != TransactionType.EXPENSE:
             raise ValueError("Budget can only be created for EXPENSE categories")
         if category.family_id is not None and category.family_id != family_id:
             raise ValueError("Invalid category selected")
@@ -86,7 +86,7 @@ class BudgetService:
             .where(
                 Transaction.family_id == family_id,
                 Transaction.category_id == budget.category_id,
-                func.upper(Transaction.transaction_type) == "EXPENSE",
+                func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value,
                 extract('month', Transaction.transaction_date) == budget.month,
                 extract('year', Transaction.transaction_date) == budget.year
             )
@@ -131,7 +131,7 @@ class BudgetService:
             )
             .where(
                 Transaction.family_id == family_id,
-                func.upper(Transaction.transaction_type) == "EXPENSE",
+                func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value,
                 Transaction.category_id.isnot(None)
             )
         )

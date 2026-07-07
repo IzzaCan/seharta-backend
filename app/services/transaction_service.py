@@ -7,7 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.wallet import Wallet
 from app.models.category import Category
 from app.models.user import User
@@ -80,7 +80,7 @@ class TransactionService:
     def _apply_balance_change(self, wallet: Wallet, amount: Decimal, transaction_type: str) -> None:
         """Apply income/expense to wallet balance. Raises 400 if balance < 0."""
         current_balance = Decimal(str(wallet.balance))
-        if transaction_type == "income":
+        if transaction_type.upper() == TransactionType.INCOME:
             wallet.balance = current_balance + amount
         else:
             new_balance = current_balance - amount
@@ -94,7 +94,7 @@ class TransactionService:
     def _reverse_balance_change(self, wallet: Wallet, amount: Decimal, transaction_type: str) -> None:
         """Reverse a previous transaction effect. Raises 400 if balance < 0."""
         current_balance = Decimal(str(wallet.balance))
-        if transaction_type == "income":
+        if transaction_type.upper() == TransactionType.INCOME:
             # Reversing income = subtract
             new_balance = current_balance - amount
             if new_balance < Decimal("0"):
@@ -153,7 +153,7 @@ class TransactionService:
         size: int = 20,
         wallet_id: Optional[UUID] = None,
         category_id: Optional[UUID] = None,
-        transaction_type: Optional[str] = None,
+        transaction_type: Optional[TransactionType] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
     ):
@@ -209,7 +209,7 @@ class TransactionService:
                 detail="Transaksi tidak ditemukan"
             )
 
-        if txn.transaction_type.upper() == "TRANSFER":
+        if txn.transaction_type.upper() == TransactionType.TRANSFER:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Transaksi transfer internal tidak dapat diubah secara langsung"
@@ -230,7 +230,7 @@ class TransactionService:
             new_txn_type = txn.transaction_type
 
         # Enforce business rule
-        if new_txn_type.upper() != "TRANSFER" and new_category_id is None:
+        if new_txn_type.upper() != TransactionType.TRANSFER and new_category_id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="category_id is required for INCOME and EXPENSE transactions"
@@ -289,7 +289,7 @@ class TransactionService:
                 detail="Transaksi tidak ditemukan"
             )
 
-        if txn.transaction_type.upper() == "TRANSFER":
+        if txn.transaction_type.upper() == TransactionType.TRANSFER:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Transaksi transfer internal tidak dapat dihapus secara langsung"

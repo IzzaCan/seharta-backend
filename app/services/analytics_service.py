@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, extract, distinct, and_
 
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.category import Category
 from app.models.wallet import Wallet
 from app.models.family import Family
@@ -95,7 +95,7 @@ class AnalyticsService:
     def _base_expense_filter(self, family_id: UUID, start_dt: datetime, end_dt: datetime):
         return (
             Transaction.family_id == family_id,
-            func.upper(Transaction.transaction_type) == 'EXPENSE',
+            func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value,
             Transaction.transaction_date >= start_dt,
             Transaction.transaction_date <= end_dt
         )
@@ -129,8 +129,8 @@ class AnalyticsService:
 
     def _get_income_vs_expense(self, family_id: UUID, start_dt: datetime, end_dt: datetime) -> AnalyticsIncomeVsExpense:
         res = self.db.query(
-            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == 'INCOME', Transaction.amount), else_=0.0)), 0.0).label('income'),
-            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == 'EXPENSE', Transaction.amount), else_=0.0)), 0.0).label('expense')
+            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == TransactionType.INCOME.value, Transaction.amount), else_=0.0)), 0.0).label('income'),
+            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value, Transaction.amount), else_=0.0)), 0.0).label('expense')
         ).filter(
             Transaction.family_id == family_id,
             Transaction.transaction_date >= start_dt,
@@ -464,7 +464,7 @@ class AnalyticsService:
             .filter(
                 Transaction.family_id == family_id,
                 Transaction.transaction_date >= thirty_days_ago,
-                func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]),
+                func.upper(Transaction.transaction_type).in_([TransactionType.INCOME.value, TransactionType.EXPENSE.value]),
                 Transaction.category_id.isnot(None)
             )
             .order_by(Transaction.transaction_date.desc())
@@ -481,11 +481,11 @@ class AnalyticsService:
             summary_lines = []
             for txn, cat in recent_transactions:
                 cat_name = cat.name if cat else "Lainnya"
-                t_type = "Pengeluaran" if txn.transaction_type.upper() == "EXPENSE" else "Pemasukan"
+                t_type = "Pengeluaran" if txn.transaction_type.upper() == TransactionType.EXPENSE else "Pemasukan"
                 summary_lines.append(f"- {txn.transaction_date.strftime('%Y-%m-%d')}: {t_type} Rp{txn.amount} ({cat_name}) - {txn.description or ''}")
-                if txn.transaction_type.upper() == "INCOME":
+                if txn.transaction_type.upper() == TransactionType.INCOME:
                     total_income += txn.amount
-                elif txn.transaction_type.upper() == "EXPENSE":
+                elif txn.transaction_type.upper() == TransactionType.EXPENSE:
                     total_expense += txn.amount
             
             summary_text = "\n".join(summary_lines)

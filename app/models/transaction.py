@@ -8,6 +8,12 @@ from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base import Base
+from enum import Enum
+
+class TransactionType(str, Enum):
+    INCOME = "INCOME"
+    EXPENSE = "EXPENSE"
+    TRANSFER = "TRANSFER"
 
 
 class Transaction(Base):

@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.wallet import Wallet
 from app.schemas.dashboard import DashboardResponse, DashboardBudgetSummary
 from app.services.budget_service import BudgetService
@@ -35,7 +35,7 @@ class DashboardService:
                 func.coalesce(
                     func.sum(
                         case(
-                            (func.upper(Transaction.transaction_type) == "INCOME", Transaction.amount),
+                            (func.upper(Transaction.transaction_type) == TransactionType.INCOME.value, Transaction.amount),
                             else_=0
                         )
                     ),
@@ -44,7 +44,7 @@ class DashboardService:
                 func.coalesce(
                     func.sum(
                         case(
-                            (func.upper(Transaction.transaction_type) == "EXPENSE", Transaction.amount),
+                            (func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value, Transaction.amount),
                             else_=0
                         )
                     ),
@@ -71,8 +71,8 @@ class DashboardService:
             .where(
                 Transaction.family_id == family_id,
                 (
-                    (func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]) & Transaction.category_id.isnot(None)) |
-                    (func.upper(Transaction.transaction_type) == "TRANSFER")
+                    (func.upper(Transaction.transaction_type).in_([TransactionType.INCOME.value, TransactionType.EXPENSE.value]) & Transaction.category_id.isnot(None)) |
+                    (func.upper(Transaction.transaction_type) == TransactionType.TRANSFER.value)
                 )
             )
             .order_by(Transaction.transaction_date.desc())

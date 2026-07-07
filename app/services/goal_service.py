@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.models.goal import Goal
 from app.models.goal_contribution import GoalContribution
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.wallet import Wallet
 from app.models.user import User
 from app.schemas.goal import GoalCreate, GoalUpdate, GoalContributionCreate
@@ -98,7 +98,7 @@ class GoalService:
                 wallet_id=wallet.id,
                 user_id=user.id,
                 amount=amount,
-                transaction_type="TRANSFER",
+                transaction_type=TransactionType.TRANSFER,
                 description=f"Transfer untuk Goal: {goal.name} - {data.note or ''}".strip(),
                 transaction_date=data.contribution_date or datetime.now(timezone.utc),
                 category_id=None # internal transfer
