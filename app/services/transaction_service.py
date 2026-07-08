@@ -7,11 +7,14 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.wallet import Wallet
 from app.models.category import Category
 from app.models.user import User
 from app.schemas.transaction import CreateTransactionRequest, UpdateTransactionRequest
+from app.models.notification import NotificationType
+from app.schemas.notification import NotificationCreate
+from app.services.notification_service import notification_service
 
 
 class TransactionService:
@@ -80,7 +83,7 @@ class TransactionService:
     def _apply_balance_change(self, wallet: Wallet, amount: Decimal, transaction_type: str) -> None:
         """Apply income/expense to wallet balance. Raises 400 if balance < 0."""
         current_balance = Decimal(str(wallet.balance))
-        if transaction_type == "income":
+        if transaction_type.upper() == TransactionType.INCOME:
             wallet.balance = current_balance + amount
         else:
             new_balance = current_balance - amount
@@ -94,7 +97,7 @@ class TransactionService:
     def _reverse_balance_change(self, wallet: Wallet, amount: Decimal, transaction_type: str) -> None:
         """Reverse a previous transaction effect. Raises 400 if balance < 0."""
         current_balance = Decimal(str(wallet.balance))
-        if transaction_type == "income":
+        if transaction_type.upper() == TransactionType.INCOME:
             # Reversing income = subtract
             new_balance = current_balance - amount
             if new_balance < Decimal("0"):
@@ -118,7 +121,7 @@ class TransactionService:
         wallet = self._lock_wallet(data.wallet_id, user.family_id)
 
         amount = Decimal(str(data.amount))
-        transaction_type = category.type
+        transaction_type = category.type.upper()
 
         # Apply balance change
         self._apply_balance_change(wallet, amount, transaction_type)
@@ -139,6 +142,22 @@ class TransactionService:
         self.db.add(txn)
 
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Transaksi Baru",
+                    message=f"Transaksi {transaction_type} sebesar {amount} telah ditambahkan.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "transaction_id": str(txn.id),
+                        "wallet_id": str(txn.wallet_id),
+                        "category_id": str(txn.category_id) if txn.category_id else None
+                    }
+                )
+            )
             self.db.commit()
             self.db.refresh(txn)
             return txn
@@ -153,7 +172,7 @@ class TransactionService:
         size: int = 20,
         wallet_id: Optional[UUID] = None,
         category_id: Optional[UUID] = None,
-        transaction_type: Optional[str] = None,
+        transaction_type: Optional[TransactionType] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
     ):
@@ -209,7 +228,7 @@ class TransactionService:
                 detail="Transaksi tidak ditemukan"
             )
 
-        if txn.transaction_type.upper() == "TRANSFER":
+        if txn.transaction_type.upper() == TransactionType.TRANSFER:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Transaksi transfer internal tidak dapat diubah secara langsung"
@@ -225,12 +244,12 @@ class TransactionService:
         # Resolve new category and transaction_type
         if data.category_id is not None:
             new_category = self._get_category_for_user(user, new_category_id)
-            new_txn_type = new_category.type
+            new_txn_type = new_category.type.upper()
         else:
             new_txn_type = txn.transaction_type
 
         # Enforce business rule
-        if new_txn_type.upper() != "TRANSFER" and new_category_id is None:
+        if new_txn_type.upper() != TransactionType.TRANSFER and new_category_id is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="category_id is required for INCOME and EXPENSE transactions"
@@ -267,6 +286,22 @@ class TransactionService:
         txn.transaction_date = new_txn_date
 
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Transaksi Diperbarui",
+                    message=f"Transaksi {new_txn_type} sebesar {new_amount} telah diperbarui.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "transaction_id": str(txn.id),
+                        "wallet_id": str(txn.wallet_id),
+                        "category_id": str(txn.category_id) if txn.category_id else None
+                    }
+                )
+            )
             self.db.commit()
             self.db.refresh(txn)
             return txn
@@ -289,7 +324,7 @@ class TransactionService:
                 detail="Transaksi tidak ditemukan"
             )
 
-        if txn.transaction_type.upper() == "TRANSFER":
+        if txn.transaction_type.upper() == TransactionType.TRANSFER:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Transaksi transfer internal tidak dapat dihapus secara langsung"
@@ -302,6 +337,22 @@ class TransactionService:
         self._reverse_balance_change(wallet, amount, txn.transaction_type)
 
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Transaksi Dihapus",
+                    message=f"Transaksi {txn.transaction_type} sebesar {amount} telah dihapus.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "transaction_id": str(txn.id),
+                        "wallet_id": str(txn.wallet_id),
+                        "category_id": str(txn.category_id) if txn.category_id else None
+                    }
+                )
+            )
             self.db.delete(txn)
             self.db.commit()
             return "Transaksi berhasil dihapus"

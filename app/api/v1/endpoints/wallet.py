@@ -12,6 +12,7 @@ from app.schemas.wallet import (
     UpdateWalletRequest,
     WalletResponse,
     WalletMessageResponse,
+    AdjustBalanceRequest,
 )
 from app.services.wallet_service import WalletService
 
@@ -73,3 +74,18 @@ def delete_wallet(
     service = WalletService(db)
     message = service.delete_wallet(current_user, wallet_id)
     return WalletMessageResponse(message=message)
+
+
+@router.post("/{wallet_id}/adjust-balance", response_model=WalletResponse)
+def adjust_wallet_balance(
+    wallet_id: UUID,
+    request: AdjustBalanceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_family_user),
+) -> Any:
+    """
+    Adjust a wallet's operational balance securely.
+    Automatically generates an audit-trail transaction (Income/Expense).
+    """
+    service = WalletService(db)
+    return service.adjust_balance(current_user, wallet_id, request)

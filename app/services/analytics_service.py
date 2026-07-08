@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, extract, distinct, and_
 
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.category import Category
 from app.models.wallet import Wallet
 from app.models.family import Family
@@ -95,7 +95,7 @@ class AnalyticsService:
     def _base_expense_filter(self, family_id: UUID, start_dt: datetime, end_dt: datetime):
         return (
             Transaction.family_id == family_id,
-            func.upper(Transaction.transaction_type) == 'EXPENSE',
+            func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value,
             Transaction.transaction_date >= start_dt,
             Transaction.transaction_date <= end_dt
         )
@@ -129,8 +129,8 @@ class AnalyticsService:
 
     def _get_income_vs_expense(self, family_id: UUID, start_dt: datetime, end_dt: datetime) -> AnalyticsIncomeVsExpense:
         res = self.db.query(
-            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == 'INCOME', Transaction.amount), else_=0.0)), 0.0).label('income'),
-            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == 'EXPENSE', Transaction.amount), else_=0.0)), 0.0).label('expense')
+            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == TransactionType.INCOME.value, Transaction.amount), else_=0.0)), 0.0).label('income'),
+            func.coalesce(func.sum(case((func.upper(Transaction.transaction_type) == TransactionType.EXPENSE.value, Transaction.amount), else_=0.0)), 0.0).label('expense')
         ).filter(
             Transaction.family_id == family_id,
             Transaction.transaction_date >= start_dt,
@@ -157,7 +157,8 @@ class AnalyticsService:
         ).join(
             Transaction, Transaction.category_id == Category.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(Category.id, Category.name).order_by(func.sum(Transaction.amount).desc()).all()
         
         results = []
@@ -284,7 +285,8 @@ class AnalyticsService:
         ).join(
             Transaction, Transaction.user_id == User.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(User.id, User.full_name, User.avatar_url).all()
         
         total_fam_expense = sum(float(r.total_spent) for r in expenses_query)
@@ -318,8 +320,11 @@ class AnalyticsService:
             func.sum(Transaction.amount).label('total_cat_spent')
         ).join(
             Category, Transaction.category_id == Category.id
+        ).join(
+            Category, Transaction.category_id == Category.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(Transaction.user_id, Category.name).subquery()
 
         # 2. Outer query with Window Function to pick the top category per user
@@ -342,8 +347,11 @@ class AnalyticsService:
             extract('dow', Transaction.transaction_date).label('dow'),
             extract('hour', Transaction.transaction_date).label('hour'),
             func.count(Transaction.id).label('cnt')
+        ).join(
+            Category, Transaction.category_id == Category.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(
             Transaction.user_id,
             extract('dow', Transaction.transaction_date),
@@ -449,7 +457,7 @@ class AnalyticsService:
             try:
                 # Menghilangkan tzinfo agar bisa dibandingkan dengan datetime.utcnow() yang naive
                 generated_at = family.insight_generated_at.replace(tzinfo=None)
-                if datetime.utcnow() - generated_at < timedelta(hours=12):
+                if datetime.utcnow() - generated_at < timedelta(hours=6):
                     logger.info(f"Returning database cached financial insight for family {family_id}")
                     return family.ai_insight
             except Exception as e:
@@ -464,7 +472,7 @@ class AnalyticsService:
             .filter(
                 Transaction.family_id == family_id,
                 Transaction.transaction_date >= thirty_days_ago,
-                func.upper(Transaction.transaction_type).in_(["INCOME", "EXPENSE"]),
+                func.upper(Transaction.transaction_type).in_([TransactionType.INCOME.value, TransactionType.EXPENSE.value]),
                 Transaction.category_id.isnot(None)
             )
             .order_by(Transaction.transaction_date.desc())
@@ -481,11 +489,11 @@ class AnalyticsService:
             summary_lines = []
             for txn, cat in recent_transactions:
                 cat_name = cat.name if cat else "Lainnya"
-                t_type = "Pengeluaran" if txn.transaction_type.upper() == "EXPENSE" else "Pemasukan"
+                t_type = "Pengeluaran" if txn.transaction_type.upper() == TransactionType.EXPENSE else "Pemasukan"
                 summary_lines.append(f"- {txn.transaction_date.strftime('%Y-%m-%d')}: {t_type} Rp{txn.amount} ({cat_name}) - {txn.description or ''}")
-                if txn.transaction_type.upper() == "INCOME":
+                if txn.transaction_type.upper() == TransactionType.INCOME:
                     total_income += txn.amount
-                elif txn.transaction_type.upper() == "EXPENSE":
+                elif txn.transaction_type.upper() == TransactionType.EXPENSE:
                     total_expense += txn.amount
             
             summary_text = "\n".join(summary_lines)

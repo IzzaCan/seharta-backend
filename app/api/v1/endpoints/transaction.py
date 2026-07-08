@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_current_family_user
 from app.db.session import get_db
 from app.models.user import User
+from app.models.transaction import TransactionType
 from app.schemas.transaction import (
     CreateTransactionRequest,
     UpdateTransactionRequest,
@@ -39,7 +40,7 @@ def list_transactions(
     size: int = Query(20, ge=1, le=100),
     wallet_id: Optional[UUID] = None,
     category_id: Optional[UUID] = None,
-    transaction_type: Optional[str] = None,
+    transaction_type: Optional[TransactionType] = None,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
     db: Session = Depends(get_db),

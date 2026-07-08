@@ -11,15 +11,17 @@ from app.models.category import Category
 
 GLOBAL_CATEGORIES = [
     # Income
-    {"name": "Gaji", "type": "income"},
-    {"name": "Hadiah", "type": "income"},
-    {"name": "Investasi", "type": "income"},
+    {"name": "Gaji", "type": "INCOME"},
+    {"name": "Hadiah", "type": "INCOME"},
+    {"name": "Investasi", "type": "INCOME"},
+    {"name": "Balance Adjustment", "type": "INCOME"},
     # Expense
-    {"name": "Makanan", "type": "expense"},
-    {"name": "Transportasi", "type": "expense"},
-    {"name": "Tagihan", "type": "expense"},
-    {"name": "Belanja", "type": "expense"},
-    {"name": "Hiburan", "type": "expense"},
+    {"name": "Makanan", "type": "EXPENSE"},
+    {"name": "Transportasi", "type": "EXPENSE"},
+    {"name": "Tagihan", "type": "EXPENSE"},
+    {"name": "Belanja", "type": "EXPENSE"},
+    {"name": "Hiburan", "type": "EXPENSE"},
+    {"name": "Balance Adjustment", "type": "EXPENSE"},
 ]
 
 

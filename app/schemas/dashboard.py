@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
+from app.models.transaction import TransactionType
 from app.schemas.budget import BudgetResponse
 
 class DashboardWalletResponse(BaseModel):
@@ -22,7 +23,7 @@ class DashboardTransactionResponse(BaseModel):
     """
     id: UUID
     amount: Decimal
-    transaction_type: str
+    transaction_type: TransactionType
     description: Optional[str] = None
     transaction_date: datetime
     creator_name: Optional[str] = None

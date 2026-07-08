@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.models.transaction import TransactionType
 
 
 class CreateTransactionRequest(BaseModel):
@@ -39,7 +40,7 @@ class TransactionResponse(BaseModel):
     user_id: Optional[UUID] = None
     category_id: Optional[UUID] = None
     amount: Decimal
-    transaction_type: str
+    transaction_type: TransactionType
     description: Optional[str] = None
     transaction_date: datetime
     created_at: datetime
