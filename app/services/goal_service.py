@@ -50,6 +50,27 @@ class GoalService:
         )
         self.db.add(goal)
         try:
+            self.db.flush()
+            
+            from app.services.notification_service import NotificationService
+            from app.schemas.notification import NotificationCreate
+            from app.models.notification import NotificationType
+            NotificationService.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Goal Dibuat",
+                    message=f"Goal '{goal.name}' dengan target {float(goal.target_amount):,.2f} telah dibuat.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "goal_id": str(goal.id),
+                        "name": goal.name,
+                        "target_amount": float(goal.target_amount)
+                    }
+                )
+            )
+            
             self.db.commit()
             self.db.refresh(goal)
             return goal
@@ -75,6 +96,33 @@ class GoalService:
             goal.target_amount = new_target
 
         try:
+            self.db.flush()
+            
+            changes = []
+            if data.name is not None: changes.append(f"nama menjadi '{goal.name}'")
+            if data.target_amount is not None: changes.append(f"target menjadi {float(goal.target_amount):,.2f}")
+            if data.deadline is not None: changes.append(f"tenggat waktu menjadi {goal.deadline.strftime('%Y-%m-%d') if goal.deadline else 'none'}")
+            
+            if changes:
+                from app.services.notification_service import NotificationService
+                from app.schemas.notification import NotificationCreate
+                from app.models.notification import NotificationType
+                NotificationService.create_notification(
+                    self.db,
+                    NotificationCreate(
+                        title="Goal Diperbarui",
+                        message=f"Goal '{goal.name}' diperbarui: " + ", ".join(changes) + ".",
+                        type=NotificationType.ACTIVITY,
+                        family_id=user.family_id,
+                        actor_user_id=user.id,
+                        metadata_payload={
+                            "goal_id": str(goal.id),
+                            "name": goal.name,
+                            "target_amount": float(goal.target_amount)
+                        }
+                    )
+                )
+
             self.db.commit()
             self.db.refresh(goal)
             return goal
@@ -140,6 +188,29 @@ class GoalService:
             self.db.flush()
             if txn:
                 contribution.transaction_id = txn.id
+                
+            from app.services.notification_service import NotificationService
+            from app.schemas.notification import NotificationCreate
+            from app.models.notification import NotificationType
+            
+            action_str = "Deposit" if data.transaction_type == "DEPOSIT" else "Withdrawal"
+            NotificationService.create_notification(
+                self.db,
+                NotificationCreate(
+                    title=f"Kontribusi Goal ({action_str})",
+                    message=f"{action_str} sebesar {float(amount):,.2f} untuk Goal '{goal.name}' berhasil dilakukan.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "goal_id": str(goal.id),
+                        "contribution_id": str(contribution.id),
+                        "transaction_type": data.transaction_type,
+                        "amount": float(amount)
+                    }
+                )
+            )
+            
             self.db.commit()
             
             # Reload relationships to populate properties in Pydantic schema
@@ -208,6 +279,26 @@ class GoalService:
         try:
             # Cascade will delete GoalContributions
             self.db.delete(goal)
+            self.db.flush()
+            
+            from app.services.notification_service import NotificationService
+            from app.schemas.notification import NotificationCreate
+            from app.models.notification import NotificationType
+            NotificationService.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Goal Dihapus",
+                    message=f"Goal '{goal.name}' telah dihapus permanen.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "goal_id": str(goal.id),
+                        "name": goal.name
+                    }
+                )
+            )
+            
             self.db.commit()
             return "Goal berhasil dihapus"
         except Exception as e:

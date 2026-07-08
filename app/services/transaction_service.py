@@ -12,6 +12,9 @@ from app.models.wallet import Wallet
 from app.models.category import Category
 from app.models.user import User
 from app.schemas.transaction import CreateTransactionRequest, UpdateTransactionRequest
+from app.models.notification import NotificationType
+from app.schemas.notification import NotificationCreate
+from app.services.notification_service import notification_service
 
 
 class TransactionService:
@@ -139,6 +142,22 @@ class TransactionService:
         self.db.add(txn)
 
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Transaksi Baru",
+                    message=f"Transaksi {transaction_type} sebesar {amount} telah ditambahkan.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "transaction_id": str(txn.id),
+                        "wallet_id": str(txn.wallet_id),
+                        "category_id": str(txn.category_id) if txn.category_id else None
+                    }
+                )
+            )
             self.db.commit()
             self.db.refresh(txn)
             return txn
@@ -267,6 +286,22 @@ class TransactionService:
         txn.transaction_date = new_txn_date
 
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Transaksi Diperbarui",
+                    message=f"Transaksi {new_txn_type} sebesar {new_amount} telah diperbarui.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "transaction_id": str(txn.id),
+                        "wallet_id": str(txn.wallet_id),
+                        "category_id": str(txn.category_id) if txn.category_id else None
+                    }
+                )
+            )
             self.db.commit()
             self.db.refresh(txn)
             return txn
@@ -302,6 +337,22 @@ class TransactionService:
         self._reverse_balance_change(wallet, amount, txn.transaction_type)
 
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Transaksi Dihapus",
+                    message=f"Transaksi {txn.transaction_type} sebesar {amount} telah dihapus.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "transaction_id": str(txn.id),
+                        "wallet_id": str(txn.wallet_id),
+                        "category_id": str(txn.category_id) if txn.category_id else None
+                    }
+                )
+            )
             self.db.delete(txn)
             self.db.commit()
             return "Transaksi berhasil dihapus"

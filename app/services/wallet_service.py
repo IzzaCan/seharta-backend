@@ -11,6 +11,9 @@ from app.models.wallet import Wallet
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.wallet import CreateWalletRequest, UpdateWalletRequest, AdjustBalanceRequest
+from app.models.notification import NotificationType
+from app.schemas.notification import NotificationCreate
+from app.services.notification_service import notification_service
 
 
 class WalletService:
@@ -29,6 +32,22 @@ class WalletService:
         )
         self.db.add(wallet)
         try:
+            self.db.flush()
+            notification_service.create_notification(
+                self.db,
+                NotificationCreate(
+                    title="Dompet Baru",
+                    message=f"Dompet '{wallet.wallet_name}' telah dibuat.",
+                    type=NotificationType.ACTIVITY,
+                    family_id=user.family_id,
+                    actor_user_id=user.id,
+                    metadata_payload={
+                        "wallet_id": str(wallet.id),
+                        "wallet_name": wallet.wallet_name,
+                        "balance": float(wallet.balance)
+                    }
+                )
+            )
             self.db.commit()
             self.db.refresh(wallet)
             return wallet
@@ -51,6 +70,7 @@ class WalletService:
             is_active=True
         )
         self.db.add(wallet)
+
         return wallet
 
     def list_wallets(self, user: User, include_inactive: bool = False) -> list[Wallet]:
@@ -94,6 +114,10 @@ class WalletService:
                     detail="Tidak dapat menonaktifkan dompet yang masih memiliki saldo"
                 )
 
+        old_wallet_name = wallet.wallet_name
+        old_is_active = wallet.is_active
+        old_balance = wallet.balance
+
         if data.initial_balance is not None:
             if Decimal(str(wallet.balance)) != Decimal("0.00"):
                 raise HTTPException(
@@ -118,7 +142,34 @@ class WalletService:
         if data.is_active is not None:
             wallet.is_active = data.is_active
 
+        changes = []
+        if data.wallet_name is not None and data.wallet_name != old_wallet_name:
+            changes.append(f"nama menjadi '{data.wallet_name}'")
+        if data.initial_balance is not None:
+            changes.append(f"saldo awal menjadi {data.initial_balance}")
+        if data.is_active is not None and data.is_active != old_is_active:
+            status_str = "diaktifkan" if data.is_active else "dinonaktifkan"
+            changes.append(f"status {status_str}")
+
         try:
+            self.db.flush()
+            if changes:
+                msg = f"Dompet '{old_wallet_name}' diperbarui: " + ", ".join(changes) + "."
+                notification_service.create_notification(
+                    self.db,
+                    NotificationCreate(
+                        title="Dompet Diperbarui",
+                        message=msg,
+                        type=NotificationType.ACTIVITY,
+                        family_id=user.family_id,
+                        actor_user_id=user.id,
+                        metadata_payload={
+                            "wallet_id": str(wallet.id),
+                            "wallet_name": wallet.wallet_name,
+                            "balance": float(wallet.balance)
+                        }
+                    )
+                )
             self.db.commit()
             self.db.refresh(wallet)
             return wallet
@@ -169,6 +220,18 @@ class WalletService:
             if txn_count == 0:
                 # Hard delete — no transaction history
                 self.db.delete(wallet)
+                self.db.flush()
+                notification_service.create_notification(
+                    self.db,
+                    NotificationCreate(
+                        title="Dompet Dihapus",
+                        message=f"Dompet '{wallet.wallet_name}' telah dihapus permanen.",
+                        type=NotificationType.ACTIVITY,
+                        family_id=user.family_id,
+                        actor_user_id=user.id,
+                        metadata_payload={"wallet_id": str(wallet.id), "wallet_name": wallet.wallet_name}
+                    )
+                )
                 self.db.commit()
                 return "Wallet berhasil dihapus"
             else:
@@ -179,6 +242,18 @@ class WalletService:
                         detail="Tidak dapat menonaktifkan dompet yang masih memiliki saldo"
                     )
                 wallet.is_active = False
+                self.db.flush()
+                notification_service.create_notification(
+                    self.db,
+                    NotificationCreate(
+                        title="Dompet Dinonaktifkan",
+                        message=f"Dompet '{wallet.wallet_name}' telah dinonaktifkan.",
+                        type=NotificationType.ACTIVITY,
+                        family_id=user.family_id,
+                        actor_user_id=user.id,
+                        metadata_payload={"wallet_id": str(wallet.id), "wallet_name": wallet.wallet_name}
+                    )
+                )
                 self.db.commit()
                 return "Wallet berhasil dinonaktifkan"
         except HTTPException:

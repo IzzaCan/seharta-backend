@@ -31,7 +31,7 @@ class BudgetService:
         return remaining_amount, progress_percentage, is_over_budget
 
     @staticmethod
-    def _validate_category(db: Session, category_id: uuid.UUID, family_id: uuid.UUID) -> None:
+    def _validate_category(db: Session, category_id: uuid.UUID, family_id: uuid.UUID) -> Category:
         category = db.execute(select(Category).where(Category.id == category_id)).scalar_one_or_none()
         if not category:
             raise ValueError("Category not found")
@@ -39,10 +39,11 @@ class BudgetService:
             raise ValueError("Budget can only be created for EXPENSE categories")
         if category.family_id is not None and category.family_id != family_id:
             raise ValueError("Invalid category selected")
+        return category
 
     @staticmethod
     def create_budget(db: Session, budget_data: BudgetCreate, family_id: uuid.UUID, user_id: uuid.UUID) -> Budget:
-        BudgetService._validate_category(db, budget_data.category_id, family_id)
+        cat = BudgetService._validate_category(db, budget_data.category_id, family_id)
         
         # Check duplicate
         existing = db.execute(
@@ -63,6 +64,29 @@ class BudgetService:
         )
         
         db.add(new_budget)
+        db.flush()
+        
+        from app.services.notification_service import NotificationService
+        from app.schemas.notification import NotificationCreate
+        from app.models.notification import NotificationType
+        NotificationService.create_notification(
+            db,
+            NotificationCreate(
+                title="Anggaran Dibuat",
+                message=f"Anggaran untuk kategori '{cat.name}' pada bulan {budget_data.month}/{budget_data.year} sebesar {float(budget_data.budget_amount):,.2f} telah dibuat.",
+                type=NotificationType.ACTIVITY,
+                family_id=family_id,
+                actor_user_id=user_id,
+                metadata_payload={
+                    "budget_id": str(new_budget.id),
+                    "category_id": str(budget_data.category_id),
+                    "month": budget_data.month,
+                    "year": budget_data.year,
+                    "budget_amount": float(budget_data.budget_amount)
+                }
+            )
+        )
+        
         db.commit()
         db.refresh(new_budget)
         
@@ -198,6 +222,47 @@ class BudgetService:
         for key, value in update_dict.items():
             setattr(budget, key, value)
 
+        db.flush()
+        
+        if update_dict:
+            # Re-fetch category if it was updated to get the name, otherwise use existing
+            cat_name = "Kategori"
+            if "category_id" in update_dict:
+                cat_obj = db.execute(select(Category).where(Category.id == update_dict["category_id"])).scalar_one_or_none()
+                if cat_obj: cat_name = cat_obj.name
+            else:
+                cat_obj = db.execute(select(Category).where(Category.id == budget.category_id)).scalar_one_or_none()
+                if cat_obj: cat_name = cat_obj.name
+            
+            changes = []
+            if "budget_amount" in update_dict: changes.append(f"jumlah menjadi {float(update_dict['budget_amount']):,.2f}")
+            if "category_id" in update_dict: changes.append(f"kategori menjadi '{cat_name}'")
+            if "month" in update_dict or "year" in update_dict: changes.append(f"periode menjadi {budget.month}/{budget.year}")
+            
+            if changes:
+                from app.services.notification_service import NotificationService
+                from app.schemas.notification import NotificationCreate
+                from app.models.notification import NotificationType
+                # Use the creator or if we don't have current user, just leave it as None (actor_user_id)
+                # Wait, update_budget doesn't take user_id! It only takes family_id. 
+                NotificationService.create_notification(
+                    db,
+                    NotificationCreate(
+                        title="Anggaran Diperbarui",
+                        message=f"Anggaran '{cat_name}' diperbarui: " + ", ".join(changes) + ".",
+                        type=NotificationType.ACTIVITY,
+                        family_id=family_id,
+                        actor_user_id=budget.created_by, # approximation
+                        metadata_payload={
+                            "budget_id": str(budget.id),
+                            "category_id": str(budget.category_id),
+                            "month": budget.month,
+                            "year": budget.year,
+                            "budget_amount": float(budget.budget_amount)
+                        }
+                    )
+                )
+
         db.commit()
         db.refresh(budget)
         
@@ -210,5 +275,28 @@ class BudgetService:
         if not budget:
             raise ValueError("Budget not found")
             
+        cat_obj = db.execute(select(Category).where(Category.id == budget.category_id)).scalar_one_or_none()
+        cat_name = cat_obj.name if cat_obj else "Kategori"
+        
         db.delete(budget)
+        db.flush()
+        
+        from app.services.notification_service import NotificationService
+        from app.schemas.notification import NotificationCreate
+        from app.models.notification import NotificationType
+        NotificationService.create_notification(
+            db,
+            NotificationCreate(
+                title="Anggaran Dihapus",
+                message=f"Anggaran untuk kategori '{cat_name}' pada bulan {budget.month}/{budget.year} telah dihapus.",
+                type=NotificationType.ACTIVITY,
+                family_id=family_id,
+                actor_user_id=budget.created_by,
+                metadata_payload={
+                    "budget_id": str(budget.id),
+                    "category_id": str(budget.category_id)
+                }
+            )
+        )
+        
         db.commit()
