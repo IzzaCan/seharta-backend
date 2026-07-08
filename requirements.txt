@@ -21,3 +21,4 @@ pytest
 httpx
 
 resend
+a2wsgi
