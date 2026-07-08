@@ -19,3 +19,7 @@ Thumbs.db
 
 dist/
 build/
+
+verify_*.py
+.agents/
+check_pg.py
