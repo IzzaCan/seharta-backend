@@ -44,7 +44,8 @@ class CategoryService:
     def list_categories(self, user: User) -> list[Category]:
         """Return global categories and family-specific categories."""
         stmt = select(Category).where(
-            Category.family_id.is_(None) | (Category.family_id == user.family_id)
+            (Category.family_id.is_(None) | (Category.family_id == user.family_id)) &
+            (Category.name != "Balance Adjustment")
         )
         result = self.db.execute(stmt).scalars().all()
         return list(result)

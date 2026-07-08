@@ -118,7 +118,7 @@ class TransactionService:
         wallet = self._lock_wallet(data.wallet_id, user.family_id)
 
         amount = Decimal(str(data.amount))
-        transaction_type = category.type
+        transaction_type = category.type.upper()
 
         # Apply balance change
         self._apply_balance_change(wallet, amount, transaction_type)
@@ -225,7 +225,7 @@ class TransactionService:
         # Resolve new category and transaction_type
         if data.category_id is not None:
             new_category = self._get_category_for_user(user, new_category_id)
-            new_txn_type = new_category.type
+            new_txn_type = new_category.type.upper()
         else:
             new_txn_type = txn.transaction_type
 

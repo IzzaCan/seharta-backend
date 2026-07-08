@@ -13,9 +13,10 @@ class CreateWalletRequest(BaseModel):
 
 
 class UpdateWalletRequest(BaseModel):
-    """Request schema for updating a wallet. Balance is never client-modifiable."""
+    """Request schema for updating a wallet. Balance is never client-modifiable except for initial setup."""
     wallet_name: Optional[str] = Field(None, min_length=1, max_length=255)
     is_active: Optional[bool] = None
+    initial_balance: Optional[Decimal] = Field(None, ge=0, description="Initial balance. Can only be set once before the wallet has any transaction history.")
 
 
 class WalletResponse(BaseModel):
@@ -34,3 +35,8 @@ class WalletResponse(BaseModel):
 class WalletMessageResponse(BaseModel):
     """Generic message response for wallet operations."""
     message: str
+
+
+class AdjustBalanceRequest(BaseModel):
+    """Payload for adjusting operational wallet balances securely."""
+    target_balance: Decimal = Field(..., ge=0, description="The real-world cash balance of the wallet.")

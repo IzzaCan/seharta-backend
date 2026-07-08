@@ -157,7 +157,8 @@ class AnalyticsService:
         ).join(
             Transaction, Transaction.category_id == Category.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(Category.id, Category.name).order_by(func.sum(Transaction.amount).desc()).all()
         
         results = []
@@ -284,7 +285,8 @@ class AnalyticsService:
         ).join(
             Transaction, Transaction.user_id == User.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(User.id, User.full_name, User.avatar_url).all()
         
         total_fam_expense = sum(float(r.total_spent) for r in expenses_query)
@@ -318,8 +320,11 @@ class AnalyticsService:
             func.sum(Transaction.amount).label('total_cat_spent')
         ).join(
             Category, Transaction.category_id == Category.id
+        ).join(
+            Category, Transaction.category_id == Category.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(Transaction.user_id, Category.name).subquery()
 
         # 2. Outer query with Window Function to pick the top category per user
@@ -342,8 +347,11 @@ class AnalyticsService:
             extract('dow', Transaction.transaction_date).label('dow'),
             extract('hour', Transaction.transaction_date).label('hour'),
             func.count(Transaction.id).label('cnt')
+        ).join(
+            Category, Transaction.category_id == Category.id
         ).filter(
-            *self._base_expense_filter(family_id, start_dt, end_dt)
+            *self._base_expense_filter(family_id, start_dt, end_dt),
+            Category.name != "Balance Adjustment"
         ).group_by(
             Transaction.user_id,
             extract('dow', Transaction.transaction_date),

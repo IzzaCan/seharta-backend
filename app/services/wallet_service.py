@@ -5,12 +5,12 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, func
+from sqlalchemy import select, func, exists
 
 from app.models.wallet import Wallet
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.wallet import CreateWalletRequest, UpdateWalletRequest
+from app.schemas.wallet import CreateWalletRequest, UpdateWalletRequest, AdjustBalanceRequest
 
 
 class WalletService:
@@ -94,6 +94,25 @@ class WalletService:
                     detail="Tidak dapat menonaktifkan dompet yang masih memiliki saldo"
                 )
 
+        if data.initial_balance is not None:
+            if Decimal(str(wallet.balance)) != Decimal("0.00"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Saldo awal hanya dapat diatur jika dompet saat ini memiliki saldo 0."
+                )
+
+            has_transactions = self.db.execute(
+                select(exists().where(Transaction.wallet_id == wallet_id))
+            ).scalar()
+
+            if has_transactions:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Saldo awal tidak dapat diubah karena dompet ini sudah memiliki riwayat transaksi."
+                )
+            
+            wallet.balance = data.initial_balance
+
         if data.wallet_name is not None:
             wallet.wallet_name = data.wallet_name
         if data.is_active is not None:
@@ -162,6 +181,64 @@ class WalletService:
                 wallet.is_active = False
                 self.db.commit()
                 return "Wallet berhasil dinonaktifkan"
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.db.rollback()
+            raise e
+
+    def adjust_balance(self, user: User, wallet_id: UUID, data: AdjustBalanceRequest) -> Wallet:
+        """Adjust wallet balance operationally by generating an audit-safe transaction."""
+        from app.services.transaction_service import TransactionService
+        from app.schemas.transaction import CreateTransactionRequest
+        from app.models.category import Category
+        
+        wallet = self.db.execute(
+            select(Wallet)
+            .where(Wallet.id == wallet_id)
+            .where(Wallet.family_id == user.family_id)
+        ).scalar_one_or_none()
+
+        if not wallet:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Wallet tidak ditemukan"
+            )
+
+        delta = data.target_balance - Decimal(str(wallet.balance))
+        if delta == Decimal("0"):
+            return wallet
+            
+        cat_type = "INCOME" if delta > 0 else "EXPENSE"
+        
+        category = self.db.execute(
+            select(Category).where(
+                Category.family_id.is_(None),
+                Category.name == "Balance Adjustment",
+                Category.type == cat_type
+            )
+        ).scalar_one_or_none()
+        
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Kategori Balance Adjustment tidak ditemukan di sistem."
+            )
+            
+        txn_request = CreateTransactionRequest(
+            wallet_id=wallet.id,
+            category_id=category.id,
+            amount=abs(delta),
+            description="Operational balance adjustment"
+        )
+        
+        try:
+            txn_service = TransactionService(self.db)
+            txn_service.create_transaction(user, txn_request)
+            
+            # We need to explicitly refresh since create_transaction commits and expires the session state
+            self.db.refresh(wallet)
+            return wallet
         except HTTPException:
             raise
         except Exception as e:
