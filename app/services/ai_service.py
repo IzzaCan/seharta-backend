@@ -1,7 +1,8 @@
 import json
 import logging
 import re
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.core.config import settings
 
@@ -10,12 +11,13 @@ logger = logging.getLogger(__name__)
 class AiService:
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
+        self.client = None
         if self.api_key:
             try:
-                genai.configure(api_key=self.api_key)
-                logger.info("Gemini AI successfully configured.")
+                self.client = genai.Client(api_key=self.api_key)
+                logger.info("Gemini AI client successfully initialized.")
             except Exception as e:
-                logger.error(f"Error configuring Gemini AI: {e}")
+                logger.error(f"Error initializing Gemini AI client: {e}")
         else:
             logger.warning("GEMINI_API_KEY is not set. AiService will operate in MOCK fallback mode.")
 
@@ -30,15 +32,17 @@ class AiService:
         Generates text using Gemini 3.5 Flash based on the given prompt.
         Throws ValueError if no API key is present.
         """
-        if self.is_mock_mode():
+        if self.is_mock_mode() or not self.client:
             raise ValueError("AiService is in mock mode. Cannot generate text from Gemini.")
             
         try:
-            model = genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
             logger.info("Sending prompt to Gemini 3.5 Flash for text generation...")
-            response = model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=settings.GEMINI_MODEL_NAME,
+                contents=prompt
+            )
             
-            result = response.text.strip()
+            result = response.text.strip() if response.text else ""
             logger.info(f"Generated text: {result}")
             return result
         except Exception as e:
@@ -50,18 +54,16 @@ class AiService:
         Generates and parses JSON using Gemini 3.5 Flash based on the given prompt and optional image.
         Throws ValueError if no API key is present.
         """
-        if self.is_mock_mode():
+        if self.is_mock_mode() or not self.client:
             raise ValueError("AiService is in mock mode. Cannot generate JSON from Gemini.")
 
         try:
-            model = genai.GenerativeModel(settings.GEMINI_MODEL_NAME)
-            
             contents = []
             if image_bytes:
-                image_part = {
-                    "mime_type": mime_type,
-                    "data": image_bytes
-                }
+                image_part = types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type=mime_type,
+                )
                 contents.append(image_part)
                 logger.info(f"Sending prompt and image ({mime_type}) to Gemini 3.5 Flash...")
             else:
@@ -69,9 +71,12 @@ class AiService:
                 
             contents.append(prompt)
             
-            response = model.generate_content(contents)
+            response = self.client.models.generate_content(
+                model=settings.GEMINI_MODEL_NAME,
+                contents=contents
+            )
             
-            response_text = response.text.strip()
+            response_text = response.text.strip() if response.text else ""
             logger.info(f"Raw response from Gemini: {response_text}")
 
             parsed_data = self._clean_and_parse_json(response_text)

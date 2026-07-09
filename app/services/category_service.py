@@ -19,10 +19,23 @@ class CategoryService:
 
     def create_category(self, user: User, data: CreateCategoryRequest) -> Category:
         """Create a custom category for the user's family."""
+        # Check duplicate case-insensitively for name and type, within global or this family
+        stmt = select(Category).where(
+            (Category.family_id.is_(None) | (Category.family_id == user.family_id)),
+            func.lower(Category.name) == func.lower(data.name),
+            func.lower(Category.type) == func.lower(data.type)
+        )
+        existing = self.db.execute(stmt).scalars().first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Kategori dengan nama dan tipe yang sama sudah ada"
+            )
+
         category = Category(
             family_id=user.family_id,
             name=data.name,
-            type=data.type,
+            type=data.type.upper(),
             icon_name=data.icon_name,
             is_default=False
         )
@@ -77,7 +90,7 @@ class CategoryService:
             )
 
         # Block type change if category is used in transactions
-        if data.type is not None and data.type != category.type:
+        if data.type is not None and data.type.upper() != category.type.upper():
             txn_count = self.db.execute(
                 select(func.count(Transaction.id))
                 .where(Transaction.category_id == category_id)
@@ -88,10 +101,28 @@ class CategoryService:
                     detail="Tidak dapat mengubah tipe kategori yang sudah digunakan dalam transaksi"
                 )
 
+        # Duplicate check if name or type is changing
+        new_name = data.name if data.name is not None else category.name
+        new_type = data.type.upper() if data.type is not None else category.type
+
+        if data.name is not None or data.type is not None:
+            stmt = select(Category).where(
+                (Category.family_id.is_(None) | (Category.family_id == user.family_id)),
+                func.lower(Category.name) == func.lower(new_name),
+                func.lower(Category.type) == func.lower(new_type),
+                Category.id != category_id
+            )
+            existing = self.db.execute(stmt).scalars().first()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Kategori dengan nama dan tipe yang sama sudah ada"
+                )
+
         if data.name is not None:
             category.name = data.name
         if data.type is not None:
-            category.type = data.type
+            category.type = data.type.upper()
         if data.icon_name is not None:
             category.icon_name = data.icon_name
 
