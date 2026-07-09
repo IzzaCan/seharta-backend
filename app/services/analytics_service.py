@@ -284,6 +284,8 @@ class AnalyticsService:
             func.count(Transaction.id).label('tx_count')
         ).join(
             Transaction, Transaction.user_id == User.id
+        ).join(
+            Category, Transaction.category_id == Category.id
         ).filter(
             *self._base_expense_filter(family_id, start_dt, end_dt),
             Category.name != "Balance Adjustment"
