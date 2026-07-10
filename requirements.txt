@@ -15,7 +15,7 @@ google-auth
 google-auth-oauthlib
 
 python-multipart
-google-generativeai
+google-genai
 
 pytest
 httpx
