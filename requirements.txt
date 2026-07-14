@@ -22,3 +22,7 @@ httpx
 
 resend
 a2wsgi
+
+pymongo
+apscheduler
+beautifulsoup4

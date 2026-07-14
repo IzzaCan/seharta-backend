@@ -7,6 +7,8 @@ from app.api.v1.router import api_router
 from app.db.session import SessionLocal
 from app.db.seed_categories import seed_global_categories
 from app.db.seed_assets import seed_global_asset_categories
+from app.db.mongo import init_mongo, close_mongo
+from app.core.scheduler import start_scheduler, shutdown_scheduler
 import os
 from fastapi.staticfiles import StaticFiles
 
@@ -18,9 +20,16 @@ async def lifespan(app: FastAPI):
     try:
         seed_global_categories(db)
         seed_global_asset_categories(db)
+        
+        # Initialize MongoDB and background scheduler
+        init_mongo()
+        start_scheduler()
     finally:
         db.close()
     yield
+    # Shutdown MongoDB and scheduler
+    shutdown_scheduler()
+    close_mongo()
 
 
 # Create static directory for avatars if not exists
