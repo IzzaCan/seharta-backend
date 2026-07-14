@@ -53,4 +53,8 @@ class Wallet(Base):
 
     # Relationships
     family: Mapped["Family"] = relationship("Family", back_populates="wallets")
-    transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="wallet")
+    transactions: Mapped[list["Transaction"]] = relationship(
+        "Transaction", 
+        back_populates="wallet", 
+        cascade="all, delete-orphan"
+    )
