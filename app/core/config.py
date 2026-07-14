@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
+    MONGODB_URL: str
 
     # JWT
     SECRET_KEY: str

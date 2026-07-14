@@ -13,6 +13,7 @@ from app.api.v1.endpoints.asset_category import router as asset_category_router
 from app.api.v1.endpoints.assets import router as assets_router
 from app.api.v1.endpoints.budgets import router as budgets_router
 from app.api.v1.endpoints.notifications import router as notifications_router
+from app.api.v1.endpoints.gold import router as gold_router
 
 api_router = APIRouter()
 
@@ -92,4 +93,10 @@ api_router.include_router(
     notifications_router,
     prefix="/notifications",
     tags=["Notifications"]
+)
+
+api_router.include_router(
+    gold_router,
+    prefix="/gold",
+    tags=["Gold Prices"]
 )

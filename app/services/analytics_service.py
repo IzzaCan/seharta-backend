@@ -322,8 +322,6 @@ class AnalyticsService:
             func.sum(Transaction.amount).label('total_cat_spent')
         ).join(
             Category, Transaction.category_id == Category.id
-        ).join(
-            Category, Transaction.category_id == Category.id
         ).filter(
             *self._base_expense_filter(family_id, start_dt, end_dt),
             Category.name != "Balance Adjustment"
