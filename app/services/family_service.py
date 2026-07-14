@@ -1,7 +1,11 @@
 import string
 import secrets
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from uuid import UUID
+import logging
+import os
+from pathlib import Path
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
@@ -9,7 +13,11 @@ from sqlalchemy import select, func
 
 from app.models.user import User
 from app.models.family import Family, PairingCode
+from app.models.asset import Asset, OwnershipType
 from app.schemas.family import CreateFamilyRequest, JoinFamilyRequest, UpdateFamilyNameRequest
+from app.utils.pdf_generator import generate_liquidation_pdf
+
+logger = logging.getLogger(__name__)
 
 
 class FamilyService:
@@ -156,3 +164,101 @@ class FamilyService:
         except Exception as e:
             self.db.rollback()
             raise e
+
+    def unlink_family(self, current_user: User) -> tuple[dict, list[str]]:
+        if not current_user.family_id:
+            raise HTTPException(status_code=400, detail="User tidak tergabung dalam dompet bersama")
+
+        family_id = current_user.family_id
+        
+        try:
+            # 1. Row Locking: Lock Family and User records to prevent race conditions
+            family = self.db.execute(
+                select(Family).where(Family.id == family_id).with_for_update()
+            ).scalar_one_or_none()
+            
+            if not family:
+                raise HTTPException(status_code=400, detail="Keluarga tidak ditemukan atau sudah dihapus")
+            
+            members = self.db.execute(
+                select(User).where(User.family_id == family_id).with_for_update()
+            ).scalars().all()
+            
+            if len(members) < 2:
+                raise HTTPException(status_code=400, detail="Anggota keluarga kurang dari 2")
+                
+            member_names = [m.full_name for m in members]
+            member_emails = [m.email for m in members]
+            
+            # 2. Query Assets
+            assets = self.db.execute(
+                select(Asset).where(Asset.family_id == family_id)
+            ).scalars().all()
+            
+            personal_assets = []
+            joint_assets = []
+            total_joint = 0.0
+            
+            # Prepare DTOs for PDF Generation to avoid DetachedInstanceError
+            for asset in assets:
+                asset_dict = {
+                    "asset_name": asset.asset_name,
+                    "valuation": float(asset.purchase_price),
+                    "owner_name": asset.owner_name
+                }
+                
+                if asset.ownership_type == OwnershipType.PERSONAL:
+                    personal_assets.append(asset_dict)
+                else:
+                    joint_assets.append(asset_dict)
+                    total_joint += float(asset.purchase_price)
+            
+            claim_per_person = total_joint / 2 if total_joint > 0 else 0.0
+            
+            # 3. Generate PDF
+            tz = ZoneInfo("Asia/Jakarta")
+            settled_at = datetime.now(tz)
+            
+            doc_number = f"LIQ-{family_id}-{settled_at.strftime('%Y%m%d%H%M%S')}"
+            
+            pdf_url = generate_liquidation_pdf(
+                family_id=str(family_id),
+                family_name=family.family_name,
+                member_names=member_names,
+                personal_assets=personal_assets,
+                joint_assets=joint_assets,
+                total_joint=total_joint,
+                claim_per_person=claim_per_person,
+                timestamp=settled_at.isoformat(),
+                doc_number=doc_number
+            )
+            
+            # 4. Eksekusi Pemusnahan (Database) & Cleanup Fallback
+            for member in members:
+                member.family_id = None
+                
+            self.db.delete(family)
+            self.db.commit()
+            
+            logger.info("Family %s successfully unlinked by user %s", family_id, current_user.id)
+            
+            return {
+                "pdf_url": pdf_url,
+                "total_joint_asset_value": total_joint,
+                "claim_per_person": claim_per_person,
+                "member_count": len(members),
+                "settled_at": settled_at
+            }, member_emails
+            
+        except Exception:
+            self.db.rollback()
+            # COMPENSATING ACTION: Hapus orphan file PDF
+            if 'pdf_url' in locals():
+                BASE_DIR = Path(__file__).resolve().parent.parent.parent
+                # PDF URL format: /static/reports/...
+                pdf_path = BASE_DIR / "app" / pdf_url.lstrip("/")
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+                    
+            logger.exception("Gagal memutus tautan keluarga.")
+            raise

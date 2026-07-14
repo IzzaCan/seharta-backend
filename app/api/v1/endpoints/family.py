@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_current_family_user
@@ -13,7 +13,8 @@ from app.schemas.family import (
     FamilyJoinResponse,
     FamilyResponse,
     UpdateFamilyNameRequest,
-    LeaveFamilyResponse
+    LeaveFamilyResponse,
+    UnlinkFamilyResponse
 )
 from app.services.family_service import FamilyService
 
@@ -66,3 +67,22 @@ def leave_family(
     """Leave the current family."""
     FamilyService(db).leave_family(current_user=current_user)
     return LeaveFamilyResponse(message="Successfully left the family")
+
+@router.post("/unlink", response_model=UnlinkFamilyResponse, status_code=status.HTTP_200_OK)
+def unlink_family(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_family_user)
+) -> Any:
+    """Putuskan Tautan (likuidasi akun keluarga) secara permanen."""
+    result_data, member_emails = FamilyService(db).unlink_family(current_user=current_user)
+    
+    from app.services.email_service import EmailService
+    for email in member_emails:
+        background_tasks.add_task(EmailService.send_liquidation_email, email, result_data["pdf_url"])
+        
+    return UnlinkFamilyResponse(
+        status="success",
+        message="Tautan keluarga berhasil diputus. Salinan Berita Acara telah dikirim ke email masing-masing anggota.",
+        data=result_data
+    )

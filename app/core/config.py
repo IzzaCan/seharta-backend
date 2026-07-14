@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_DAYS: int
+    
+    # API
+    API_BASE_URL: str = "http://localhost:8000"
+
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str
