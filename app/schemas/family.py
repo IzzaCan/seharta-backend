@@ -33,3 +33,15 @@ class FamilyJoinResponse(BaseModel):
 
 class LeaveFamilyResponse(BaseModel):
     message: str
+
+class UnlinkFamilyData(BaseModel):
+    pdf_url: str
+    total_joint_asset_value: float
+    claim_per_person: float
+    member_count: int
+    settled_at: datetime
+
+class UnlinkFamilyResponse(BaseModel):
+    status: str
+    message: str
+    data: UnlinkFamilyData

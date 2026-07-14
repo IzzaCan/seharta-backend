@@ -26,3 +26,4 @@ a2wsgi
 pymongo
 apscheduler
 beautifulsoup4
+fpdf2
